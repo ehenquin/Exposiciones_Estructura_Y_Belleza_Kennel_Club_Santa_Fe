@@ -1,0 +1,1237 @@
+/* =========================
+   BASE Y LAYOUT
+========================= */
+* { box-sizing: border-box; }
+
+body {
+  font-family: sans-serif;
+  background: #f4f4f4;
+  margin: 0;
+}
+
+.wrap {
+  max-width: 1100px;
+  margin: 20px auto;
+  padding: 20px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.10);
+}
+
+.hidden { display: none !important; }
+
+/* util */
+.is-hidden { display: none !important; }
+
+/* =========================
+   HEADER
+========================= */
+header h1 {
+  font-size: 22px;
+  color: #2c3e50;
+  margin: 0 0 10px 0;
+  line-height: 1.2;
+  text-align: left;
+  letter-spacing: -0.5px;
+  border-bottom: 2px solid #eee;
+  padding-bottom: 10px;
+}
+
+@media (max-width: 600px) {
+  header h1 { font-size: 18px; }
+}
+
+/* =========================
+   NAVEGACIÓN Y TABS
+========================= */
+.nav {
+  display: flex;
+  gap: 10px;
+  margin: 20px 0;
+  flex-wrap: wrap;
+}
+
+.tab {
+  padding: 10px 20px;
+  cursor: pointer;
+  border: 1px solid #ccc;
+  background: #fff;
+  border-radius: 5px;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.tab.active {
+  background: #007bff;
+  color: #fff;
+  border-color: #007bff;
+}
+
+/* (para el HTML nuevo; si no existen no molestan) */
+.tab-grupos { color: gold; font-weight: bold; }
+.tab-bis { background: #fff3cd; color: #856404; font-weight: bold; border: 1px solid #ffeeba; }
+
+/* =========================
+   GRILLAS / TARJETAS / TOOLBAR
+========================= */
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.card {
+  border: 1px solid #ddd;
+  padding: 15px;
+  border-radius: 5px;
+  background: #fff;
+}
+
+.toolbar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+/* =========================
+   TABLAS Y FORMULARIOS
+========================= */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+th, td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: left;
+  font-size: 13px;
+}
+
+th { background: #f8f8f8; }
+
+.field { margin-bottom: 10px; }
+
+label {
+  display: block;
+  font-weight: bold;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+input, select {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+/* clases del HTML nuevo */
+.filter-row { margin-bottom: 10px; display: flex; gap: 5px; }
+.filter-select { flex: 1; }
+
+.form-row { margin-bottom: 10px; }
+.form-label-strong { display:block; font-weight:600; margin-bottom:6px; }
+
+.muted { color: #666; }
+.hint-muted { color: gray; }
+
+.field-highlight {
+  background: #f0f4f8;
+  padding: 10px;
+  border-radius: 4px;
+  border: 1px solid #d1d9e0;
+}
+
+.select-strong { width: 100%; padding: 8px; font-weight: bold; }
+
+.cronograma-small { font-size: 11px; }
+
+/* =========================
+   BOTONES GENERALES
+========================= */
+.btn {
+  padding: 10px 15px;
+  cursor: pointer;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  font-weight: bold;
+  background: #fff;
+}
+
+.btn.primary {
+  background: #28a745;
+  color: #fff;
+  border: none;
+}
+
+.btn-danger {
+  background: #ff4444;
+  color: #fff;
+  border: none;
+}
+
+.hidden-on-load { display: none; }
+
+.actions { display: flex; gap: 10px; }
+
+/* PISTAS RAZAS - Botones Pista cobre */
+#viewPistas .btn.primary {
+  background: linear-gradient(180deg,#d4874a 0%,#b87333 70%,#8a4b1c 100%) !important;
+  border: 1px solid #6f3b15 !important;
+  color: #fff !important;
+}
+
+
+/* =========================
+   STATUS
+========================= */
+.status {
+  background: #e9ecef;
+  padding: 10px;
+  font-size: 12px;
+  border-radius: 4px;
+  border: 1px solid #dee2e6;
+}
+
+/* =========================
+   BOTONERAS DE OPCIONES (RAZAS/GRUPOS/JUECES)
+========================= */
+.btn-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 5px;
+}
+
+.btn-opt {
+  padding: 10px 14px;
+  font-size: 0.85em;
+  border: 1px solid #ced4da;
+  background: #fff;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+.btn-opt:hover { background: #f8f9fa; border-color: #adb5bd; }
+
+/* Activos */
+.btn-juez-pista.active,
+.btn-juez-grupo.active,
+.btn-opt.active {
+  background: linear-gradient(180deg,#d4874a 0%,#b87333 70%,#8a4b1c 100%) !important;
+  color: #fff !important;
+  border-color: #6f3b15 !important;
+  font-weight: bold;
+  box-shadow: 0 4px 8px rgba(184,115,51,.35) !important;
+}
+
+/* Multi (si lo usás) */
+.btn-opt.multi.active {
+  background: #28a745 !important;
+  color: #fff !important;
+  border-color: #1e7e34 !important;
+  box-shadow: 0 0 8px rgba(40,167,69,0.40);
+}
+
+/* =========================
+   LISTADOS DE INSCRIPTOS
+========================= */
+.list-group-header {
+  background: #333;
+  color: #fff;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: bold;
+  text-transform: uppercase;
+  margin-top: 15px;
+  border-radius: 4px;
+}
+
+.list-breed-header {
+  background: #e1f5fe;
+  color: #0277bd;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: bold;
+  border-left: 4px solid #0277bd;
+  margin-top: 5px;
+}
+
+.list-cat-header {
+  background: #f1f8e9;
+  color: #33691e;
+  padding: 2px 10px;
+  font-size: 16px;
+  font-weight: 600;
+  font-style: italic;
+  border-left: 4px solid #33691e;
+}
+
+.list-filters {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 10px;
+  padding: 5px;
+  background: #eee;
+  border-radius: 4px;
+}
+
+.hint-text {
+  font-size: 11px;
+  color: #666;
+  font-style: italic;
+  margin-top: 2px;
+}
+
+/* =========================
+   JUZGAMIENTO COMPACTO
+========================= */
+.dog-card-compact {
+  padding: 8px 10px !important;
+  border-left-width: 4px !important;
+  margin-bottom: 8px;
+  border: 1px solid #eee;
+  border-radius: 6px;
+}
+
+.dog-flex-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 5px;
+}
+
+.dog-ident { font-size: 1.1em; font-weight: bold; }
+
+.btn-group-inline { display: flex; gap: 2px; }
+
+.btn-xs {
+  padding: 4px 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: 1px solid #ccc;
+  background: #f9f9f9;
+  cursor: pointer;
+  border-radius: 4px;
+  min-width: 32px;
+  text-align: center;
+}
+
+.btn-xs.active {
+  background: #1a73e8;
+  color: #fff;
+  border-color: #1557b0;
+}
+
+/* Puestos (si viene por contenedor) */
+.puesto-btns .btn-xs {
+  background: #f9f9f9;
+  color: #333;
+  border: 1px solid #ccc;
+}
+
+.puesto-btns .btn-xs.active {
+  background: #1a73e8;
+  color: #fff;
+  border-color: #1557b0;
+}
+
+/* =========================
+   CRONOGRAMA DE PISTAS
+========================= */
+.cronograma-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid #eee;
+  background: #fff;
+  margin-bottom: 5px;
+  border-radius: 4px;
+  border-left: 4px solid #007bff;
+}
+
+.btn-del {
+  background: #ff4444;
+  color: #fff;
+  border: none;
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+/* =========================
+   BANNERS (BIS / GRUPOS)
+========================= */
+.info-banner {
+  padding: 10px;
+  margin-bottom: 10px;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+  background: #f8f9fa;
+}
+
+.info-banner-grupos {
+  background: #fff3cd;
+  border-color: #ffeeba;
+}
+
+.info-banner-bis {
+  background: #fffbf0;
+  border-color: #d4af37;
+}
+
+/* botón BIS “open” */
+.btn-bis-open {
+  width: 100%;
+  margin-top: 15px;
+  background: #d4af37;
+  border: none;
+  color: #111;
+}
+
+/* =========================
+   SPLASH SCREEN
+========================= */
+#splashScreen {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%;
+  height: 100%;
+  background: #fff;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 99999;
+  transition: opacity 0.6s ease;
+}
+
+#splashScreen.hidden { opacity: 0; visibility: hidden; }
+
+.splash-content { text-align: center; width: 90%; max-width: 400px; }
+.splash-logo { width: 100%; max-width: 280px; height: auto; margin-bottom: 25px; border-radius: 8px; }
+
+.splash-main-title {
+  font-family: sans-serif;
+  color: #2c3e50;
+  font-size: 1.3em;
+  font-weight: 600;
+  margin: 10px 0 25px 0;
+  line-height: 1.3;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.loading-bar-container { width: 100%; height: 6px; background: #f0f0f0; border-radius: 10px; overflow: hidden; }
+.loading-bar { width: 40%; height: 100%; background: #2c3e50; animation: loadingProgress 1.5s infinite ease-in-out; }
+
+@keyframes loadingProgress {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(250%); }
+}
+
+.loading-text { margin-top: 15px; font-size: 14px; color: #888; }
+.splash-footer { margin-top: 40px; font-size: 12px; color: #aaa; }
+
+/* =========================
+   RESPONSIVE
+========================= */
+#contCatalogos, table { overflow-x: auto; }
+#contCatalogos table { min-width: 520px; }
+
+@media (max-width: 900px) {
+  .wrap { margin: 0; border-radius: 0; }
+  .grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 600px) {
+  .wrap { padding: 12px; }
+  .toolbar { flex-direction: column; }
+  .toolbar select, .toolbar button { width: 100%; }
+
+  .nav { gap: 8px; margin: 12px 0; }
+  .tab { padding: 10px 12px; width: 100%; text-align: center; }
+
+  .btn { width: 100%; }
+  .actions { flex-direction: column; gap: 8px; }
+
+  input, select { font-size: 16px; }
+  .btn-opt { width: 100%; justify-content: center; }
+  .btn-group { display: grid; grid-template-columns: 1fr; gap: 8px; }
+
+  .btn-group-inline { flex-wrap: wrap; }
+  .dog-flex-row { flex-direction: column; align-items: flex-start; }
+}
+
+/* =========================
+   EFECTO CONFLICTO (si lo usás)
+========================= */
+@keyframes warningFlash {
+  0% { background-color: transparent; }
+  50% { background-color: #ffcccc; }
+  100% { background-color: transparent; }
+}
+.conflict-flash { animation: warningFlash 0.8s ease-in-out; }
+
+/* =========================
+   JUECES: banderas (si lo usás)
+========================= */
+.judge-country {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #445;
+  margin-top: 4px;
+  opacity: 0.95;
+}
+.judge-flag { font-size: 16px; line-height: 1; }
+
+/* =============================================================================
+   INSCRIPCIONES: RAZA + ITEM PERRO (MEJORADO)
+   (NO TOCADO — solo reubicado con orden visual)
+   ============================================================================= */
+
+/* 1) Encabezado de RAZA */
+#viewInscripciones .list-breed-header {
+  background: linear-gradient(135deg, #fdfcfb 0%, #f3f4f6 100%);
+  color: #1f2937;
+  padding: 12px 16px;
+  margin: 18px 0 8px 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  border-radius: 12px;
+  border: 1px solid rgba(0,0,0,0.05);
+  box-shadow: 
+    0 6px 18px rgba(0,0,0,0.06),
+    inset 0 1px 0 rgba(255,255,255,0.8);
+}
+
+/* 2) Tarjeta de cada PERRO */
+#viewInscripciones .insc-item{
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+  transition: transform .08s ease, box-shadow .12s ease, border-color .12s ease;
+}
+
+#viewInscripciones .insc-item:hover{
+  transform: translateY(-1px);
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.10);
+}
+
+/* Número (#1, #2, etc) */
+#viewInscripciones .insc-num{
+  display: inline-block;
+  font-weight: 800;
+  color: #111827;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  padding: 3px 10px;
+  margin-right: 8px;
+}
+
+/* Descriptor “Macho | Cachorro” */
+#viewInscripciones .insc-meta{
+  color: #374151;
+  font-weight: 600;
+}
+
+/* =========================================================
+   PISTAS RAZAS – COBRE EXACTO (estructura igual al ejemplo)
+   (ÚNICO bloque que toca esta pestaña)
+   ========================================================= */
+
+#viewPistas .grid{
+  grid-template-columns: 480px 1fr !important;
+  gap: 5px !important;
+  align-items: start !important;
+}
+
+#viewPistas #panelJuzgamiento{
+  background:#fffaf5 !important;
+  border-radius:18px !important;
+  padding:22px !important;
+  border:1px solid rgba(184,115,51,.25) !important;
+}
+
+/* ===== CARD PERRO ===== */
+
+/*
+=============================================================================
+MÓDULO: PISTAS RAZAS - OPTIMIZACIÓN VISUAL (COBRE PRO)
+-----------------------------------------------------------------------------
+DESCRIPCIÓN: 
+Ajustes de compactación para mejorar la densidad de datos en pantalla y 
+jerarquización de categorías para una lectura rápida en pista.
+
+SECCIONES:
+1. ESTRUCTURA DE TARJETA: Reducción de padding y márgenes.
+2. ESPACIADO INTERNO: Ajuste de aire entre filas de calificación y títulos.
+3. BOTONERAS: Escalamiento hacia abajo para botones de Puesto, Calif y Títulos.
+4. CATEGORÍAS: Aumento de tamaño para headers (Cachorro, Adulto, etc.).
+=============================================================================
+
+
+/* 1) Tarjeta más baja (menos alto) */
+#viewPistas .dog-card-compact{
+  background:#ffffff !important;
+  border:1px solid rgba(184,115,51,.35) !important;
+  border-left:6px solid #b87333 !important;
+  border-radius:14px !important;
+  padding:10px 14px !important;  /* antes 16px 20px */
+  margin-bottom:10px !important; /* antes 14px */
+  display:flex !important;
+  flex-direction:column !important;
+  gap:10px !important; /* antes 14px */
+}
+
+
+/* 4) Categoría separadora más grande (Cachorro / Joven / Adulto, etc) */
+#viewPistas .list-cat-header{
+  font-size: 18px !important;     /* antes 16px global */
+  padding: 6px 12px !important;   /* un poco más de presencia */
+  font-weight: 800 !important;
+}
+
+/* ===== FILA SUPERIOR (# + texto + puestos) ===== */
+
+#viewPistas .dog-flex-row{
+  display:grid !important;
+  grid-template-columns:1fr auto !important;
+  align-items:center !important;
+}
+
+#viewPistas .dog-flex-row > div:first-child{
+  display:flex !important;
+  align-items:baseline !important;
+  gap:10px !important;
+  font-weight:800 !important;
+  color:#3a1e0b !important;
+}
+
+#viewPistas .puesto-btns{
+  display:flex !important;
+  gap:8px !important;
+}
+
+#viewPistas .puesto-btns .btn-xs{
+  width:38px !important;           /* BOTONES MAS CHICOS antes 40 */
+  height:38px !important;          /* BOTONES MAS CHICOS antes 40 */
+  border-radius:50% !important;
+  font-size:13px !important;       /* BOTONES MAS CHICOS antes 14 */  
+  font-weight:800 !important;
+  padding:0 !important;
+}
+
+/* ===== FILA CALIFICACIÓN ===== */
+
+/* 2) Menos aire entre filas internas */
+#viewPistas .calif-row{
+  display:flex !important;
+  justify-content:flex-end !important;
+  align-items:center !important;
+  gap:10px !important; /* Menos aire entre filas internas antes antes 14px */
+  border-top:1px solid rgba(184,115,51,.15) !important;
+  padding-top:8px !important; /* Menos aire entre filas internas antes 10px */
+}
+
+#viewPistas .calif-label{
+  font-size:11px !important;
+  font-weight:800 !important;
+  color:#b87333 !important;
+  text-transform:uppercase !important;
+}
+
+#viewPistas .btn-group-inline{
+  display:flex !important;
+  gap:8px !important;
+}
+
+#viewPistas .btn-group-inline .btn-xs{
+  height:30px !important;               /* antes 32 */
+  min-width:38px !important;            /* antes 40 */
+  border-radius:8px !important;
+  font-size:11px !important;            /* antes 12 */
+  font-weight:800 !important;
+  padding:0 10px !important;
+}
+
+/* ===== FILA TÍTULOS ===== */
+
+#viewPistas .titulos-row{
+  display:flex !important;
+  flex-wrap:wrap !important;
+  gap:6px !important;
+  justify-content:flex-end !important;
+  border-top:1px dashed rgba(184,115,51,.2) !important;
+  padding-top:10px !important; /* antes 12px */
+}
+
+#viewPistas .titulos-row .btn-xs{
+  height:20px !important; /* 22 antes 24 */
+  padding:0 10px !important;   /*0 8 antes 0 10 */
+  font-size:8px !important; /* 9 antes 10 */
+  border-radius:14px !important;
+  font-weight:800 !important;
+  text-transform:uppercase !important;
+  min-width:auto !important;
+}
+
+/* ===== BOTONES BASE (solo en viewPistas) ===== */
+
+#viewPistas .btn-xs{
+  background:#fff !important;
+  border:1px solid rgba(184,115,51,.4) !important;
+  color:#3a1e0b !important;
+  transition:.2s !important;
+}
+
+#viewPistas .btn-xs.active{
+  background:linear-gradient(180deg,#d4874a 0%,#b87333 70%,#8a4b1c 100%) !important;
+  color:#fff !important;
+  border-color:#6f3b15 !important;
+  box-shadow:0 4px 8px rgba(184,115,51,.3) !important;
+}
+
+
+/* Destacar nombre de raza */
+#viewPistas .juzg-header-raza{
+  font-size: 16px !important;
+  font-weight: 800 !important;
+  color: #6f3b15 !important;
+  background: linear-gradient(90deg, #f3e3d3 0%, #ffffff 100%) !important;
+  padding: 8px 14px !important;
+  border-left: 6px solid #b87333 !important;
+  border-radius: 8px !important;
+  margin: 10px 0 6px 0 !important;
+}
+
+
+
+/* TAB PISTAS RAZAS - estilo cobre */
+#navPistas.active{
+  background: linear-gradient(180deg,#d4874a 0%,#b87333 70%,#8a4b1c 100%) !important;
+  border-color:#6f3b15 !important;
+  color:#fff !important;
+}
+
+
+
+/* =========================================================
+   PISTAS GRUPOS – PLATA (ÚNICO bloque que toca esta pestaña)
+   ========================================================= */
+
+/* PISTAS GRUPOS (PLATA): botones activos SOLO en esta pestaña */
+#viewPistasGrupos .btn-opt.active,
+#viewPistasGrupos .btn-juez-grupo.active{
+  background: linear-gradient(180deg,#f5f7fa 0%, #cfd6de 60%, #9aa3ad 100%) !important;
+  color: #1f2937 !important;
+  border-color: #7b8794 !important;
+  box-shadow: 0 4px 10px rgba(120,130,140,.35) !important;
+}
+
+
+/* PISTAS GRUPOS – Botones puestos PLATA */
+#viewPistasGrupos .btn-xs{
+  background:#f2f2f2 !important;
+  border:1px solid #c9c9c9 !important;
+  color:#444 !important;
+}
+
+#viewPistasGrupos .btn-xs.active{
+  background:linear-gradient(180deg,#e6e6e6 0%,#cfcfcf 60%,#b5b5b5 100%) !important;
+  border-color:#9e9e9e !important;
+  color:#222 !important;
+  box-shadow:0 3px 6px rgba(0,0,0,.15) !important;
+}
+/* TAB PISTAS GRUPOS – estilo PLATA */
+#navPistasGrupos.active{
+  background: linear-gradient(180deg,#e6e6e6 0%,#cfcfcf 60%,#b5b5b5 100%) !important;
+  border:1px solid #9e9e9e !important;
+  color:#222 !important;
+}
+
+#navPistasGrupos{
+  border:1px solid #c9c9c9 !important;
+  color:#444 !important;
+}
+
+/* =====================================================
+   PISTAS GRUPOS – CATEGORÍAS (PLATA PROFESIONAL)
+===================================================== */
+
+#viewPistasGrupos h4,
+#viewPistasGrupos .categoria-header{
+  font-size: 16px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #2c2c2c;
+  background: linear-gradient(180deg,#f0f0f0 0%,#d9d9d9 60%,#c2c2c2 100%);
+  border-left: 6px solid #9e9e9e;
+  padding: 8px 14px;
+  border-radius: 8px;
+  margin: 18px 0 8px 0;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
+
+
+/* ===============================
+   PISTAS GRUPOS – HEADER CATEGORÍA PLATA
+================================= */
+#viewPistasGrupos .juzg-header-supercat{
+  font-size: 14px;   /* 15px; */
+  font-weight: 700;  /* 800; */
+  letter-spacing: 0.6px; /* 1; */
+  padding: 6px 12px;  /* 10px 16px; */
+  margin: 14px 0 8px 0;   /* 18px 0 10px 0; */
+
+  color: #2f2f2f;
+
+  background: linear-gradient(
+    180deg,
+    #f8f8f8 0%,  /* 0 */
+    #e2e2e2 50%, /* 40 */
+    #cfcfcf 100% /* 0 */
+  );
+
+  border: 1px solid #bdbdbd;
+  border-left: 4px solid #9a9a9a;  /* 6px */
+  border-radius: 8px;  /* 10px */
+
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.9),
+    0 1px 3px rgba(0,0,0,0.06);  /* 0 2px 6px        rgba(0,0,0,0.08)      */
+}
+
+/* =====================================================
+   PISTAS GRUPOS – “PILLS” DE GRUPO (G1, G2, G8) PLATA
+   Solo afecta #viewPistasGrupos
+===================================================== */
+
+#viewPistasGrupos .grupo-pill{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 4px 10px;
+  margin: 6px 8px 6px 0;
+
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .6px;
+  text-transform: uppercase;
+
+  color: #1f2937;
+  background: linear-gradient(180deg,#f7f7f7 0%,#e3e3e3 55%,#cfcfcf 100%);
+  border: 1px solid #a8a8a8;
+  border-radius: 999px;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.9),
+    0 2px 6px rgba(0,0,0,.10);
+}
+
+/* opcional: un “punto” metálico a la izquierda */
+#viewPistasGrupos .grupo-pill::before{
+  content:"";
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  margin-right: 8px;
+  background: radial-gradient(circle at 30% 30%, #ffffff 0%, #d0d0d0 45%, #9a9a9a 100%);
+  border: 1px solid rgba(120,120,120,.55);
+}
+
+/* PISTAS GRUPOS – separador visual para cada bloque de grupo */
+#viewPistasGrupos .grupo-pill{
+  margin: 14px 0 8px 0;     /* más aire arriba, menos a la derecha */
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+#viewPistasGrupos .grupo-pill::after{
+  content:"";
+  display:block;
+  height:1px;
+  margin-top:10px;
+  width: 100%;
+  background: linear-gradient(90deg, rgba(160,160,160,.55), rgba(200,200,200,.15));
+}
+
+
+
+
+/* =====================================================
+   FINALES BIS – ESTILO ORO PROFESIONAL
+===================================================== */
+
+#viewFinalesBIS .bis-header-supercat{
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+
+  padding: 10px 18px;
+  margin: 22px 0 14px 0;
+
+  color: #4a3500;
+
+  background: linear-gradient(
+    180deg,
+    #fff6d5 0%,
+    #f5d37a 35%,
+    #e0b84d 65%,
+    #c89f2e 100%
+  );
+
+  border: 1px solid #b9931f;
+  border-left: 6px solid #a87d0a;
+  border-radius: 12px;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.9),
+    0 4px 10px rgba(0,0,0,0.12);
+}
+
+
+/* ================================
+   MÓDULO: FINALES BIS - ORO (AISLADO)
+   Solo afecta #viewBis
+================================ */
+
+#viewBis .bis-title{
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  padding: 8px 14px;
+  margin: 16px 0 10px 0;
+
+  color: #2a1a00;
+
+  background: linear-gradient(
+    180deg,
+    #fff7d1 0%,
+    #f7d56a 35%,
+    #d6a21c 70%,
+    #b07d00 100%
+  );
+
+  border: 1px solid #caa24a;
+  border-left: 6px solid #8a5b00;
+  border-radius: 10px;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.85),
+    0 2px 6px rgba(0,0,0,0.10);
+
+  text-transform: uppercase;
+}
+
+
+/* ===============================
+   BIS: destacar el grupo [Gx] - ORO
+   =============================== */
+#viewBis .bis-card .bis-row .muted{
+  display: inline-flex;
+  align-items: center;
+
+  padding: 4px 12px;
+  border-radius: 999px;
+
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: .8px;
+
+  color: #4a3200;
+
+  background: linear-gradient(
+    180deg,
+    #fff4c2 0%,
+    #f4d77a 40%,
+    #d4a017 100%
+  );
+
+  border: 1px solid #b8860b;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.7),
+    0 2px 4px rgba(0,0,0,.08);
+
+  opacity: 1; /* anulamos el muted */
+}
+
+/* ===============================
+   BIS – [Gx] al lado del ejemplar + botones a la derecha
+   =============================== */
+
+#viewBis .bis-card .bis-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;   /* info izq / botones der */
+  gap:12px;
+}
+
+#viewBis .bis-card .bis-row > div:first-child{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;                  /* si el nombre es largo, baja prolijo */
+  gap:10px;
+  min-width:0;
+}
+
+/* mata el salto de línea que te separa [G1] del # */
+#viewBis .bis-card .bis-row > div:first-child br{
+  display:none;
+}
+
+/* espacio fino entre [G1] y # */
+#viewBis .bis-card .bis-row > div:first-child strong{
+  margin-left:2px;
+}
+
+/* botones siempre compactos y sin romperse */
+#viewBis .bis-card .bis-row .puesto-btns{
+  display:flex;
+  flex-wrap:nowrap;
+  gap:6px;
+}
+
+
+/* =====================================================
+   BIS – BOTONES DE PUESTOS (ORO)
+   SOLO afecta a viewBis
+===================================================== */
+
+#viewBis .btn-xs{
+  background: linear-gradient(180deg,#f5f5f5 0%,#e2e2e2 100%);
+  border: 1px solid #c9c9c9;
+  color: #333;
+  transition: all 0.2s ease;
+}
+
+#viewBis .btn-xs.active{
+  background: linear-gradient(
+    180deg,
+    #ffe8a3 0%,
+    #f5c94c 45%,
+    #d4a017 100%
+  );
+  border: 1px solid #b8860b;
+  color: #3b2b00;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.6),
+    0 2px 6px rgba(0,0,0,0.15);
+}
+
+/* =========================================
+   NAV – FINALES BIS DORADO
+   ========================================= */
+
+#navBis,
+#navBis.active {
+  background: linear-gradient(
+    180deg,
+    #ffe9a6 0%,
+    #f5c84c 45%,
+    #d6a319 100%
+  ) !important;
+  border: 1px solid #b88700 !important;
+  color: #3a2b00 !important;
+  font-weight: 700;
+}
+
+/* hover */
+#navBis:hover {
+  filter: brightness(1.05);
+}
+
+
+
+/* =========================================
+   NAV – Botón FINALES BIS (3 estados)
+   ========================================= */
+
+/* 1) No seleccionado (idle): dorado CLARO */
+#navBis.tab.tab-bis{
+  background: linear-gradient(180deg, #fff4cc 0%, #f7d97a 55%, #e5b93a 100%) !important;
+  border: 1px solid #c79a1f !important;
+  color: #3a2b00 !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.75);
+  opacity: .78;
+}
+
+/* 2) Hover: un poco más intenso */
+#navBis.tab.tab-bis:hover{
+  opacity: .92;
+  filter: saturate(1.05) brightness(1.02);
+}
+
+/* 3) Seleccionado (active): dorado FUERTE */
+#navBis.tab.tab-bis.active{
+  background: linear-gradient(180deg, #ffe9a6 0%, #f5c84c 45%, #d6a319 100%) !important;
+  border: 1px solid #b88700 !important;
+  color: #2b1f00 !important;
+  opacity: 1;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.6),
+    0 2px 8px rgba(0,0,0,.18);
+}
+
+
+
+/* =========================================
+   NAV – Botón Pistas Grupos (PLATA)
+   ========================================= */
+
+/* 1) No seleccionado (idle): plata CLARO */
+#navPistasGrupos.tab{
+  background: linear-gradient(
+    180deg,
+    #f2f2f2 0%,
+    #dddddd 50%,
+    #c9c9c9 100%
+  ) !important;
+  border: 1px solid #b5b5b5 !important;
+  color: #2f2f2f !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.85);
+  opacity: .85;
+}
+
+/* 2) Hover */
+#navPistasGrupos.tab:hover{
+  opacity: .95;
+  filter: brightness(1.02);
+}
+
+/* 3) Seleccionado (active): plata FUERTE */
+#navPistasGrupos.tab.active{
+  background: linear-gradient(
+    180deg,
+    #e5e5e5 0%,
+    #cfcfcf 45%,
+    #b8b8b8 100%
+  ) !important;
+  border: 1px solid #9f9f9f !important;
+  color: #1f1f1f !important;
+  opacity: 1;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.7),
+    0 2px 6px rgba(0,0,0,.12);
+}
+
+
+/* =========================================
+   NAV – Botón Pistas Razas (COBRE)
+   ========================================= */
+
+/* 1) No seleccionado (idle): cobre CLARO */
+#navPistas.tab{
+  background: linear-gradient(
+    180deg,
+    #f3d2bf 0%,
+    #e0a889 50%,
+    #c9875e 100%
+  ) !important;
+  border: 1px solid #b87333 !important;
+  color: #3b1f0f !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.7);
+  opacity: .85;
+}
+
+/* 2) Hover */
+#navPistas.tab:hover{
+  opacity: .95;
+  filter: brightness(1.05);
+}
+
+/* 3) Seleccionado (active): cobre FUERTE */
+#navPistas.tab.active{
+  background: linear-gradient(
+    180deg,
+    #d08a5c 0%,
+    #b87333 45%,
+    #8f4e1d 100%
+  ) !important;
+  border: 1px solid #7a3e14 !important;
+  color: #ffffff !important;
+  opacity: 1;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.4),
+    0 2px 6px rgba(0,0,0,.15);
+}
+
+
+
+
+/* Ajustes de estilo para pantalla de login 19/2/2026 */
+#loginOverlay {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
+  z-index: 9999; display: flex; align-items: center; justify-content: center;
+}
+.login-box {
+  width: 320px; padding: 30px !important; text-align: center;
+  border: 2px solid #b87333 !important;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5) !important;
+}
+.login-logo { width: 80px; border-radius: 50%; margin-bottom: 15px; border: 2px solid #b87333; }
+.login-header h2 { color: #8a4b1c; font-size: 18px; margin-bottom: 5px; }
+.login-header p { font-size: 12px; color: #666; margin-bottom: 20px; }
+#inputApiKey {
+  width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 4px;
+  text-align: center; font-size: 16px; letter-spacing: 2px; margin-bottom: 15px;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+/* Ajustes para Celulares */
+@media (max-width: 600px) {
+  /* 1. Forzar una sola columna en los formularios */
+  .grid-container, .form-row {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  /* 2. Inputs al 100% de ancho */
+  input, select, button {
+    width: 100%;
+    font-size: 16px; /* Evita que iOS haga zoom automático al escribir */
+    padding: 12px;   /* Botones más grandes para el dedo */
+  }
+
+  /* 3. Tablas con scroll horizontal para que no se rompan */
+  .table-container {
+    overflow-x: auto;
+    display: block;
+  }
+
+  /* 4. Ocultar columnas no críticas si es necesario */
+  .col-opcional {
+    display: none;
+  }
+}

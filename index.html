@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Expo Canina - Control Panel</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div id="splashScreen">
+  <div class="splash-content">
+    <img src="https://i.postimg.cc/zB74zfKK/Logo-Kennel.jpg" alt="Logo Kennel" class="splash-logo">
+
+    <h2 class="splash-main-title">Planilla Electrónica<br>Exposiciones de Estructura y Belleza</h2>
+
+    <div class="loading-bar-container">
+      <div class="loading-bar"></div>
+    </div>
+    <p class="loading-text">Sincronizando sistema...</p>
+    <footer class="splash-footer">
+      Diseñada por <a href="https://ehenquin.github.io/LinkTreePro/" target="_blank">Dr. Eduardo R. Henquín</a> - 2026
+    </footer>
+  </div>
+</div>
+
+
+<div id="loginOverlay" class="hidden">
+  <div class="login-box card">
+    <div class="login-header">
+       <img src="https://i.postimg.cc/zB74zfKK/Logo-Kennel.jpg" alt="Logo" class="login-logo">
+       <h2>Acceso Restringido</h2>
+       <p>Ingrese la Clave de API para operar el sistema</p>
+    </div>
+    <div class="field">
+      <input type="password" id="inputApiKey" placeholder="API KEY">
+    </div>
+    <button id="btnLogin" class="btn primary">INGRESAR AL SISTEMA</button>
+    <p id="loginError" class="err hidden" style="margin-top:10px; font-size:12px; color: red;"></p>
+  </div>
+</div>
+
+
+
+
+
+
+
+
+
+
+  <div class="wrap">
+    <header>
+      <h1>Planilla Electrónica - Exposiciones de Estructura y Belleza - Kennel Club Santa Fe</h1>
+      <nav class="nav">
+        <button id="navCatalogos" class="tab active">Catálogos</button>
+        <button id="navEventos" class="tab">Eventos</button>
+        <button id="navJueces" class="tab">Jueces</button>
+        <button id="navInscripciones" class="tab">Inscripciones</button>
+        <button id="navPistas" class="tab">Pistas Razas</button>
+        <button id="navPistasGrupos" class="tab tab-grupos">🏆 Pistas Grupos</button>
+        <button id="navBis" class="tab tab-bis">👑 FINALES BIS</button>
+      </nav>
+      <div id="status" class="status">Listo.</div>
+    </header>
+
+    <section id="viewCatalogos">
+      <div class="toolbar">
+        <select id="catalogo"></select>
+        <button id="btnRecargar">🔄 Recargar</button>
+      </div>
+      <div id="contCatalogos"></div>
+    </section>
+
+    <section id="viewEventos" class="hidden">
+      <div class="grid">
+        <div class="card">
+          <h3>Eventos Registrados</h3>
+          <div id="eventosList"></div>
+        </div>
+        <div class="card">
+          <h3 id="formTitle">Nuevo Evento</h3>
+          <form id="eventosForm">
+            <div class="field">
+              <label>Nombre del Evento</label>
+              <input type="text" id="eventName" placeholder="Ej: Expo Santa Fe 2026">
+            </div>
+            <div class="field">
+              <label>Fecha del Evento</label>
+              <input type="date" id="eventFecha">
+            </div>
+            <div class="field">
+              <label>Lugar</label>
+              <input type="text" id="eventLugar" placeholder="Ej: Predio Ferial">
+            </div>
+          </form>
+          <div class="actions">
+            <button id="btnNuevo" class="btn">Nuevo</button>
+            <button id="btnGuardar" class="btn primary">Guardar</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="viewJueces" class="hidden">
+      <div class="grid">
+        <div class="card">
+          <h3>Jueces Registrados</h3>
+          <div id="juecesList"></div>
+        </div>
+        <div class="card">
+          <h3 id="formTitleJuez">Nuevo Juez</h3>
+          <form id="juecesForm"></form>
+          <div class="actions">
+            <button id="btnNuevoJuez" class="btn">Nuevo</button>
+            <button id="btnGuardarJuez" class="btn primary">Guardar</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="viewInscripciones" class="hidden">
+      <div class="grid">
+        <div class="card">
+          <h3>Perros Inscriptos</h3>
+          <div id="filterCont" class="filter-row">
+            <select id="filterGrupo" class="filter-select"></select>
+            <select id="filterRaza" class="filter-select"></select>
+          </div>
+          <div id="inscripcionesList"></div>
+        </div>
+
+        <div class="card">
+          <h3>Formulario de Inscripción</h3>
+          <form id="inscripcionForm">
+            <input type="hidden" name="IDInscripcion">
+            <input type="hidden" name="IDEvento">
+
+            <div class="form-row">
+              <label class="form-label-strong">Evento activo</label>
+              <select id="insEventoSelect" class="form-control"></select>
+              <small id="insEventoInfo" class="muted"></small>
+            </div>
+
+            <div class="field">
+              <label>Número de Catálogo</label>
+              <input type="text" name="NumeroCatalogo" placeholder="">
+              <small id="nroHint" class="hint-muted"></small>
+            </div>
+
+            <div class="field">
+              <label>Grupo</label>
+              <input type="hidden" name="IDGrupo">
+              <div class="btn-group" data-name="IDGrupo" id="insGrupoBtns"></div>
+            </div>
+
+            <div class="field">
+              <label>Raza</label>
+              <select name="IDRaza" id="insRaza" class="form-control">
+                <option value="">Seleccione un Grupo primero</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label>Categoría</label>
+              <input type="hidden" name="IDCategoria">
+              <div class="btn-group" data-name="IDCategoria" id="insCatBtns"></div>
+            </div>
+
+            <div class="field">
+              <label>Sexo</label>
+              <input type="hidden" name="IDSexo">
+              <div class="btn-group" data-name="IDSexo" id="insSexoBtns"></div>
+            </div>
+
+            <div class="field">
+              <label>Títulos Obtenidos</label>
+              <input type="hidden" name="Titulos">
+              <div class="btn-group" data-name="Titulos" id="insTitulosBtns"></div>
+            </div>
+
+            <div class="field">
+              <label>Observaciones</label>
+              <input type="text" name="Observaciones">
+            </div>
+          </form>
+
+          <div class="actions">
+            <button id="btnEliminarInscripcion" class="btn btn-danger hidden-on-load">Eliminar</button>
+            <button id="btnNuevaInscripcion" class="btn">Limpiar</button>
+            <button id="btnGuardarInscripcion" class="btn primary">Inscribir Perro</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="viewPistas" class="hidden">
+      <div class="grid">
+        <div class="card">
+          <h3>Programación de Pistas Razas</h3>
+
+          <div class="field field-highlight">
+            <label class="field-highlight-title"><strong>1. Seleccionar Evento de la Expo</strong></label>
+            <select id="pistaEventoSelect" class="select-strong"></select>
+          </div>
+
+          <hr>
+
+          <div id="formPistasDinamico">
+            <p class="hint-text">Seleccione un evento arriba para cargar el panel.</p>
+          </div>
+
+          <hr>
+          <h4>Cronograma Actual</h4>
+          <div id="cronogramaPistas" class="cronograma-small"></div>
+        </div>
+
+        <div class="card">
+          <h3>Juzgamiento en Vivo (Razas)</h3>
+          <div class="field">
+            <label>Seleccionar Pista para Trabajar</label>
+            <div class="btn-group" id="selectorPistaTrabajo">
+              <button type="button" class="btn-opt" data-value="1">Pista 1</button>
+              <button type="button" class="btn-opt" data-value="2">Pista 2</button>
+              <button type="button" class="btn-opt" data-value="3">Pista 3</button>
+            </div>
+          </div>
+          <div id="panelJuzgamiento">
+            <p class="hint-text">Seleccione una pista para ver los perros asignados.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="viewPistasGrupos" class="hidden">
+      <div class="grid">
+        <div class="card">
+          <h3>Programación de Pistas Grupos</h3>
+          <form id="pistasGruposForm">
+            <div id="formPistasGruposDinamico">
+              <p class="hint-text">Cargando opciones...</p>
+            </div>
+          </form>
+        </div>
+
+        <div class="card">
+          <h3>Final de Grupo en Vivo</h3>
+          <div id="infoPistaGrupoActiva" class="info-banner info-banner-grupos is-hidden">
+            <strong>Pista Activa:</strong> <span id="txtPistaGrupoActiva">Ninguna</span>
+          </div>
+          <div id="panelJuzgamientoGrupos">
+            <p class="hint-text">Seleccione grupos y categorías para ver los campeones de raza.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="viewBis" class="hidden">
+      <div class="grid">
+        <div class="card">
+          <h3>Programación de Finales BIS</h3>
+          <div id="formBisDinamico" class="form-grid">
+            <p class="hint-text">Cargando opciones...</p>
+          </div>
+          <button type="button" id="btnAbrirBis" class="btn primary btn-bis-open">✨ Abrir Pista Central BIS ✨</button>
+        </div>
+
+        <div class="card">
+          <h3>Gran Final BIS en Vivo</h3>
+          <div id="infoPistaBisActiva" class="info-banner info-banner-bis is-hidden">
+            <strong>👑 Pista Activa:</strong> <span id="txtPistaBisActiva">Ninguna</span>
+          </div>
+          <div id="panelJuzgamientoBis">
+            <p class="hint-text">Seleccione Evento y Juez para ver los ganadores de grupo clasificados.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
