@@ -555,11 +555,32 @@ input, select {
    (ÚNICO bloque que toca esta pestaña)
    ========================================================= */
 
-#viewPistas .grid{
+
+/* =========================================================
+   esta parte la cambio el chat para forzar vista 1 col en celus
+   antes habia #viewPistas .grid{
   grid-template-columns: 480px 1fr !important;
   gap: 5px !important;
   align-items: start !important;
 }
+   ========================================================= */
+
+#viewPistas .grid{
+  display: grid !important;
+  grid-template-columns: 480px 1fr !important;
+  gap: 5px !important;
+  align-items: start !important;
+}
+
+/* RESPONSIVE SOLO PARA PISTAS RAZAS */
+@media (max-width: 900px){
+  #viewPistas .grid{
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* =========================================================
+   ========================================================= */
 
 #viewPistas #panelJuzgamiento{
   background:#fffaf5 !important;
@@ -1227,16 +1248,6 @@ SECCIONES:
     width: 100% !important;
     margin-top: 20px;
   }
-
-
-
-
-
-
-
-
-
-
 
 
   /* 3. Inputs al 100% de ancho */
