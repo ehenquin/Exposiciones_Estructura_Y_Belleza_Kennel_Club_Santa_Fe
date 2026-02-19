@@ -1211,23 +1211,48 @@ SECCIONES:
 /* Ajustes para Celulares */
 @media (max-width: 600px) {
   /* 1. Forzar una sola columna en los formularios */
-  .grid-container, .form-row {
+  .grid-container, .form-row, .pistas-container, .main-layout, .container {
     display: flex;
-    flex-direction: column;
-    gap: 10px;
+    flex-direction: column !important;
+    gap: 15px;
   }
 
-  /* 2. Inputs al 100% de ancho */
+  /* 2. Control del orden: Pistas arriba, Juzgamiento abajo */
+   .pistas-seccion, .pistas-listado {
+    order: 1; /* Primero */
+  }
+
+  .juzgamiento-seccion, .sidebar-derecho, .live-results {
+    order: 2; /* Segundo (Abajo) */
+    width: 100% !important;
+    margin-top: 20px;
+  }
+
+
+
+
+
+
+
+
+
+
+
+
+  /* 3. Inputs al 100% de ancho */
   input, select, button {
     width: 100%;
     font-size: 16px; /* Evita que iOS haga zoom automático al escribir */
     padding: 12px;   /* Botones más grandes para el dedo */
+    box-sizing: border-box; /* Asegura que el padding no rompa el ancho */
   }
 
   /* 3. Tablas con scroll horizontal para que no se rompan */
   .table-container {
+    vertical-align: middle;
     overflow-x: auto;
     display: block;
+    width: 100%;
   }
 
   /* 4. Ocultar columnas no críticas si es necesario */
