@@ -5,12 +5,12 @@ const CACHE = new Map();
 
 // Variable para recordar qué pista de grupo estamos juzgando actualmente
 window._pistaGrupoActiva = {
-    eventId: null,
-    groupIds: [], // Ahora es un array para selección múltiple
-    judgeId: null,
-    superCats: [],
-    eventName: "",
-    judgeName: ""
+  eventId: null,
+  groupIds: [], // Ahora es un array para selección múltiple
+  judgeId: null,
+  superCats: [],
+  eventName: "",
+  judgeName: ""
 };
 
 // --- ESTRUCTURA PARA EL TEMPORIZADOR (AUTO-GUARDADO) ---
@@ -18,7 +18,7 @@ const pendingTimers = new Map();
 
 // *************************************************************************************
 // >>> CONFIGURACIÓN DEL TIEMPO DE ESPERA DEL AUTO-GUARDADO (en milisegundos) <<<
-const TIEMPO_ESPERA_GUARDADO = 3000; 
+const TIEMPO_ESPERA_GUARDADO = 3000;
 // *************************************************************************************
 
 // --- MAPEO DE SUPER-CATEGORÍAS REALES (REFORMA GRUPOS) ---
@@ -32,7 +32,9 @@ const MAPA_SUPER_CATS = {
 
 // --- FUNCIONES AUXILIARES IMPORTANTES ---
 const normalizeID = (id) => String(id || "").trim().toLowerCase();
-
+function isTruthy(v) {
+  return ["true", "1", "si", "sí", "yes", "x"].includes(String(v || "").trim().toLowerCase());
+}
 // --- NORMALIZADOR DE GRUPO: "Grupo 1" y "G1" pasan a ser "G1" ---
 function normalizeGrupo(gr) {
   const s = String(gr || "").trim();
@@ -50,7 +52,7 @@ function normalizeGrupo(gr) {
 }
 
 const eventoOf = (r) => normalizeID(r?.IDEvento ?? r?.IDEvento ?? "");
-const juezOf   = (r) => normalizeID(r?.IDJuez   ?? r?.IDJuez   ?? "");
+const juezOf = (r) => normalizeID(r?.IDJuez ?? r?.IDJuez ?? "");
 
 
 
@@ -60,9 +62,9 @@ const juezOf   = (r) => normalizeID(r?.IDJuez   ?? r?.IDJuez   ?? "");
 
 
 function formatFechaCristiana(fechaInput) {
-    if (!fechaInput) return "";
-    const [year, month, day] = fechaInput.split("-");
-    return `${day}/${month}/${year}`;
+  if (!fechaInput) return "";
+  const [year, month, day] = fechaInput.split("-");
+  return `${day}/${month}/${year}`;
 }
 
 
@@ -75,7 +77,7 @@ function formatFechaCristiana(fechaInput) {
 // --- 1. NÚCLEO Y COMUNICACIÓN (REPARADO) ---
 async function api(metodo, params = {}, body = null, opts = {}) {
   const url = new URL(CONFIG.API_URL);
-  
+
   // Obtenemos la llave de la memoria temporal del navegador
   const sessionKey = sessionStorage.getItem("USER_API_KEY") || CONFIG.API_KEY;
 
@@ -125,7 +127,7 @@ window.api = api;
 
 
 
-function setStatus(m, err = false) { 
+function setStatus(m, err = false) {
   const s = $("status");
   if (s) { s.textContent = m; s.style.color = err ? "red" : "black"; }
 }
@@ -177,131 +179,193 @@ function traducirTitulos(idsStr, listaTitulos) {
 
 
 // --- 2. GESTIÓN DE CATÁLOGOS (CONSOLIDADOS Y COMPLETOS) ---
-function loadCatalog() {
+async function loadCatalog() {
   const table = $("catalogo").value;
   if (!table) return;
-  setStatus("Cargando " + table + "...");
+
+  // 1. Manejo del Filtro de Evento para Perros Inscriptos
+  const filterContainerId = "catalogFilterContainer";
+  let filterContainer = $(filterContainerId);
+
+  // Si no existe el contenedor de filtros, lo creamos antes del contenedor de la tabla
+  if (!filterContainer) {
+    filterContainer = document.createElement("div");
+    filterContainer.id = filterContainerId;
+    filterContainer.className = "catalog-toolbar-extra";
+    $("contCatalogos").parentNode.insertBefore(filterContainer, $("contCatalogos"));
+  }
+
+  // Solo mostramos el selector si estamos en la tabla de perros inscriptos
+  if (table === "Catalogo_Perros_Inscriptos") {
+    const eventos = CACHE.get("Eventos") || [];
+
+    // Recuperamos o definimos el evento seleccionado (si ya existía el select)
+    let selectedEventId = $(filterContainerId).querySelector("select")?.value || "";
+
+    // Si no hay selección previa, tomamos el último evento cargado
+    if (!selectedEventId && eventos.length > 0) {
+      selectedEventId = String(eventos[eventos.length - 1].IDEvento);
+    }
+
+    // Inyectamos el HTML (sin onchange inline)
+    filterContainer.innerHTML = `
+      <div class="field" style="max-width: 400px; margin-bottom: 15px; background: #fdf2e9; padding: 10px; border-radius: 8px; border: 1px solid #e67e22;">
+        <label style="color: #a04000; font-weight: bold;">🔍 Filtrar Perros por Evento:</label>
+        <select id="filterCatalogEvento" class="select-lg">
+          <option value="TODOS">-- Mostrar Todos los Eventos --</option>
+          ${eventos.map(e => `
+            <option value="${e.IDEvento}" ${String(e.IDEvento) === selectedEventId ? 'selected' : ''}>
+              ${e.NombreEvento}
+            </option>
+          `).join("")}
+        </select>
+      </div>
+    `;
+    filterContainer.style.display = "block";
+
+    // ASIGNACIÓN DE EVENTO POR CÓDIGO (Solución al ReferenceError)
+    const selFiltro = $("filterCatalogEvento");
+    if (selFiltro) {
+      selFiltro.onchange = () => loadCatalog();
+    }
+
+  } else {
+    // Si elegimos otra tabla, ocultamos el filtro de perros
+    filterContainer.style.display = "none";
+  }
+
   let rows = CACHE.get(table) || [];
 
   if (rows.length > 0) {
-      const insc = CACHE.get("Catalogo_Perros_Inscriptos") || [];
-      const razas = CACHE.get("Catalogo_Razas") || [];
-      const cats = CACHE.get("Catalogo_Categorias") || [];
-      const sexos = CACHE.get("Catalogo_Sexos") || [];
-      const titulos = CACHE.get("Catalogo_Titulos") || [];
-      const eventos = CACHE.get("Eventos") || [];
-      const jueces = CACHE.get("Jueces") || [];
-      const grupos = CACHE.get("Catalogo_Grupos") || [];
+    const insc = CACHE.get("Catalogo_Perros_Inscriptos") || [];
+    const razas = CACHE.get("Catalogo_Razas") || [];
+    const cats = CACHE.get("Catalogo_Categorias") || [];
+    const sexos = CACHE.get("Catalogo_Sexos") || [];
+    const titulos = CACHE.get("Catalogo_Titulos") || [];
+    const eventos = CACHE.get("Eventos") || [];
+    const jueces = CACHE.get("Jueces") || [];
+    const grupos = CACHE.get("Catalogo_Grupos") || [];
 
     if (table === "Catalogo_Perros_Inscriptos") {
-      rows = rows.map(r => ({
-        "Nro": r.NumeroCatalogo,
-        "Grupo": r.IDGrupo,
-        "Raza": razas.find(x => String(x.IDRaza) === String(r.IDRaza))?.NombreRaza || r.IDRaza,
-        "Categoría": cats.find(x => String(x.IDCategoria) === String(r.IDCategoria))?.NombreCategoria || r.IDCategoria,
-        "Sexo": sexos.find(x => String(x.IDSexo) === String(r.IDSexo))?.NombreSexo || r.IDSexo,
-        "Títulos": traducirTitulos(r.Titulos, titulos),
-        "Observaciones": r.Observaciones
-      }));
+      const activeFilterId = $("filterCatalogEvento")?.value;
+
+      // Aplicamos filtro de evento si no es "TODOS"
+      if (activeFilterId && activeFilterId !== "TODOS") {
+        rows = rows.filter(r => normalizeID(r.IDEvento) === normalizeID(activeFilterId));
+      }
+
+      // MAPEADO LIMPIO: Sin ...r para evitar columnas duplicadas o técnicas
+      rows = rows.map(r => {
+        const eData = eventos.find(e => normalizeID(e.IDEvento) === normalizeID(r.IDEvento));
+        return {
+          "Evento": eData ? eData.NombreEvento : "N/D",
+          "Nro": r.NumeroCatalogo,
+          "Grupo": r.IDGrupo,
+          "Raza": razas.find(rz => String(rz.IDRaza) === String(r.IDRaza))?.NombreRaza || r.IDRaza,
+          "Categoría": cats.find(c => String(c.IDCategoria) === String(r.IDCategoria))?.NombreCategoria || r.IDCategoria,
+          "Sexo": sexos.find(s => String(s.IDSexo) === String(r.IDSexo))?.NombreSexo || r.IDSexo,
+          "Títulos": r.Titulos,
+          "Observaciones": r.Observaciones
+        };
+      });
 
     } else if (table === "Resultados_Razas") {
-        const consolidados = new Map();
-        rows.forEach(r => {
-            const claveUnica = `${r.IDInscripcion}_${r.IDEvento}_${r.IDJuez}`;
-            if (!consolidados.has(claveUnica)) {
-                consolidados.set(claveUnica, { ...r });
-            } else {
-                const existente = consolidados.get(claveUnica);
-                if (r.Puesto) existente.Puesto = r.Puesto;
-                if (r.Calificacion) existente.Calificacion = r.Calificacion;
-                if (r.Titulo_Ganado) existente.Titulo_Ganado = r.Titulo_Ganado;
-            }
-        });
-        rows = Array.from(consolidados.values()).map(r => {
-            const iData = insc.find(i => String(i.IDInscripcion) === String(r.IDInscripcion));
-            const rData = iData ? razas.find(rz => String(rz.IDRaza) === String(iData.IDRaza)) : null;
-            const eData = eventos.find(e => String(e.IDEvento) === String(r.IDEvento));
-            const jData = jueces.find(j => String(j.IDJuez) === String(r.IDJuez));
-            const cData = iData ? cats.find(c => String(c.IDCategoria) === String(iData.IDCategoria)) : null;
-            const sData = iData ? sexos.find(s => String(s.IDSexo) === String(iData.IDSexo)) : null;
+      const consolidados = new Map();
+      rows.forEach(r => {
+        const claveUnica = `${r.IDInscripcion}_${r.IDEvento}_${r.IDJuez}`;
+        if (!consolidados.has(claveUnica)) {
+          consolidados.set(claveUnica, { ...r });
+        } else {
+          const existente = consolidados.get(claveUnica);
+          if (r.Puesto) existente.Puesto = r.Puesto;
+          if (r.Calificacion) existente.Calificacion = r.Calificacion;
+          if (r.Titulo_Ganado) existente.Titulo_Ganado = r.Titulo_Ganado;
+        }
+      });
+      rows = Array.from(consolidados.values()).map(r => {
+        const iData = insc.find(i => String(i.IDInscripcion) === String(r.IDInscripcion));
+        const rData = iData ? razas.find(rz => String(rz.IDRaza) === String(iData.IDRaza)) : null;
+        const eData = eventos.find(e => String(e.IDEvento) === String(r.IDEvento));
+        const jData = jueces.find(j => String(j.IDJuez) === String(r.IDJuez));
+        const cData = iData ? cats.find(c => String(c.IDCategoria) === String(iData.IDCategoria)) : null;
+        const sData = iData ? sexos.find(s => String(s.IDSexo) === String(iData.IDSexo)) : null;
 
-            return {
-                "Nro Cat.": iData ? iData.NumeroCatalogo : "N/D",
-                "Raza": rData ? rData.NombreRaza : "N/D",
-                "Categoría": cData ? cData.NombreCategoria : (iData ? iData.IDCategoria : "N/D"),
-                "Sexo": sData ? sData.NombreSexo : (iData ? iData.IDSexo : "N/D"),
-                "Puesto": r.Puesto,
-                "Calif.": r.Calificacion,
-                "Títulos Ganados": r.Titulo_Ganado,
-                "Evento": eData ? eData.NombreEvento : r.IDEvento,
-                "Juez": jData ? jData.NombreJuez : r.IDJuez
-            };
-        });
+        return {
+          "Nro Cat.": iData ? iData.NumeroCatalogo : "N/D",
+          "Raza": rData ? rData.NombreRaza : "N/D",
+          "Categoría": cData ? cData.NombreCategoria : (iData ? iData.IDCategoria : "N/D"),
+          "Sexo": sData ? sData.NombreSexo : (iData ? iData.IDSexo : "N/D"),
+          "Puesto": r.Puesto,
+          "Calif.": r.Calificacion,
+          "Títulos Ganados": r.Titulo_Ganado,
+          "Evento": eData ? eData.NombreEvento : r.IDEvento,
+          "Juez": jData ? jData.NombreJuez : r.IDJuez
+        };
+      });
 
     } else if (table === "Resultados_Grupos") {
-        const consolidadosG = new Map();
-        rows.forEach(r => {
-            const claveUnica = `${r.IDInscripcion}_${r.IDEvento}_${r.IDGrupo}`;
-            if (!consolidadosG.has(claveUnica)) {
-                consolidadosG.set(claveUnica, { ...r });
-            } else {
-                const existente = consolidadosG.get(claveUnica);
-                if (r.PuestoGrupo) existente.PuestoGrupo = r.PuestoGrupo;
-            }
-        });
-        rows = Array.from(consolidadosG.values()).map(r => {
-            const iData = insc.find(i => String(i.IDInscripcion) === String(r.IDInscripcion));
-            const eData = eventos.find(e => String(e.IDEvento) === String(r.IDEvento));
-            const gData = grupos.find(g => String(g.IDGrupo) === String(r.IDGrupo));
-            
-            // FIX: Obtenemos Raza y Sexo para mostrar en el catálogo
-            const rData = iData ? razas.find(rz => String(rz.IDRaza) === String(iData.IDRaza)) : null;
-            const sData = iData ? sexos.find(s => String(s.IDSexo) === String(iData.IDSexo)) : null;
-            const cData = iData ? cats.find(c => String(c.IDCategoria) === String(iData.IDCategoria)) : null;
+      const consolidadosG = new Map();
+      rows.forEach(r => {
+        const claveUnica = `${r.IDInscripcion}_${r.IDEvento}_${r.IDGrupo}`;
+        if (!consolidadosG.has(claveUnica)) {
+          consolidadosG.set(claveUnica, { ...r });
+        } else {
+          const existente = consolidadosG.get(claveUnica);
+          if (r.PuestoGrupo) existente.PuestoGrupo = r.PuestoGrupo;
+        }
+      });
+      rows = Array.from(consolidadosG.values()).map(r => {
+        const iData = insc.find(i => String(i.IDInscripcion) === String(r.IDInscripcion));
+        const eData = eventos.find(e => String(e.IDEvento) === String(r.IDEvento));
+        const gData = grupos.find(g => String(g.IDGrupo) === String(r.IDGrupo));
 
-            return {
-                "Nro Cat.": iData ? iData.NumeroCatalogo : "N/D",
-                "Raza": rData ? rData.NombreRaza : "N/D",
-                "Sexo": sData ? sData.NombreSexo : "N/D",
-                "Categoría": cData ? cData.NombreCategoria : (iData ? iData.IDCategoria : "N/D"),
-                "Puesto Grupo": r.PuestoGrupo,
-                "Grupo": gData ? (gData.NombreGrupo || r.IDGrupo) : r.IDGrupo,
-                "Evento": eData ? eData.NombreEvento : r.IDEvento
-            };
-        });
+        const rData = iData ? razas.find(rz => String(rz.IDRaza) === String(iData.IDRaza)) : null;
+        const sData = iData ? sexos.find(s => String(s.IDSexo) === String(iData.IDSexo)) : null;
+        const cData = iData ? cats.find(c => String(c.IDCategoria) === String(iData.IDCategoria)) : null;
+
+        return {
+          "Nro Cat.": iData ? iData.NumeroCatalogo : "N/D",
+          "Raza": rData ? rData.NombreRaza : "N/D",
+          "Sexo": sData ? sData.NombreSexo : "N/D",
+          "Categoría": cData ? cData.NombreCategoria : (iData ? iData.IDCategoria : "N/D"),
+          "Puesto Grupo": r.PuestoGrupo,
+          "Grupo": gData ? (gData.NombreGrupo || r.IDGrupo) : r.IDGrupo,
+          "Evento": eData ? eData.NombreEvento : r.IDEvento
+        };
+      });
     } else if (table === "Resultados_BIS") {
-        // FIX: Agregamos el formateo para el catálogo de BIS
-        rows = rows.map(r => {
-            const iData = insc.find(i => String(i.IDInscripcion) === String(r.IDInscripcion));
-            const rData = iData ? razas.find(rz => String(rz.IDRaza) === String(iData.IDRaza)) : null;
-            const eData = eventos.find(e => String(e.IDEvento) === String(r.IDEvento));
-            return {
-                "Tipo BIS": r.TipoBIS,
-                "Puesto": r.PuestoBIS,
-                "Nro Cat.": iData ? iData.NumeroCatalogo : "N/D",
-                "Raza": rData ? rData.NombreRaza : "N/D",
-                "Evento": eData ? eData.NombreEvento : r.IDEvento
-            };
-        });
+      rows = rows.map(r => {
+        const iData = insc.find(i => String(i.IDInscripcion) === String(r.IDInscripcion));
+        const rData = iData ? razas.find(rz => String(rz.IDRaza) === String(iData.IDRaza)) : null;
+        const eData = eventos.find(e => String(e.IDEvento) === String(r.IDEvento));
+        return {
+          "Tipo BIS": r.TipoBIS,
+          "Puesto": r.PuestoBIS,
+          "Nro Cat.": iData ? iData.NumeroCatalogo : "N/D",
+          "Raza": rData ? rData.NombreRaza : "N/D",
+          "Evento": eData ? eData.NombreEvento : r.IDEvento
+        };
+      });
     }
   }
   renderTable("contCatalogos", rows);
-  setStatus("Listo.");
 }
+
+
 
 function renderTable(div, rows) {
   if (!rows.length) { $(div).innerHTML = "Vacío."; return; }
   // Ocultamos los IDs técnicos incluyendo el de BIS
   const colsToDelete = ['IDResultado', 'IDResultadoGrupo', 'IDResultadoBIS', 'IDInscripcion', 'IDJuez', 'IDEvento', 'IDRaza', 'IDCategoria', 'IDSexo', 'IDTitulo'];
-  
+
   let displayRows = rows.map(r => {
-      let newRow = {...r};
-      colsToDelete.forEach(c => delete newRow[c]);
-      return newRow;
+    let newRow = { ...r };
+    colsToDelete.forEach(c => delete newRow[c]);
+    return newRow;
   });
 
-  if(displayRows.length === 0) { $(div).innerHTML = "Vacío o solo datos técnicos."; return; }
-  
+  if (displayRows.length === 0) { $(div).innerHTML = "Vacío o solo datos técnicos."; return; }
+
   const cols = Object.keys(displayRows[0]);
   $(div).innerHTML = `<table><thead><tr>${cols.map(c => `<th>${c}</th>`).join("")}</tr></thead>
     <tbody>${displayRows.map(r => `<tr>${cols.map(c => `<td>${r[c] || ""}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
@@ -342,30 +406,105 @@ window.editEvento = (id) => {
 
 async function loadJueces() {
   const rows = CACHE.get("Jueces") || [];
+  const eventos = CACHE.get("Eventos") || [];
+  const asignaciones = CACHE.get("Gestion_pistas") || [];
 
-  $("juecesList").innerHTML = rows.map(r => {
+  // 1. Manejo del Filtro de Evento
+  const filterContainerId = "juecesFilterContainer";
+  let filterContainer = $(filterContainerId);
+
+  if (!filterContainer) {
+    filterContainer = document.createElement("div");
+    filterContainer.id = filterContainerId;
+    filterContainer.className = "catalog-toolbar-extra";
+    $("juecesList").parentNode.insertBefore(filterContainer, $("juecesList"));
+  }
+
+  let selectedEventId = filterContainer.querySelector("select")?.value || "";
+  if (!selectedEventId && eventos.length > 0) {
+    selectedEventId = String(eventos[eventos.length - 1].IDEvento);
+  }
+
+  filterContainer.innerHTML = `
+    <div class="field" style="max-width: 450px; margin-bottom: 20px; background: #f4f7f9; padding: 12px; border-radius: 10px; border: 1px solid #3498db;">
+      <label style="color: #2980b9; font-weight: bold;">🌍 Ver Jueces de la Exposición:</label>
+      <select id="filterJuecesEvento" class="select-lg">
+        ${eventos.map(e => `
+          <option value="${e.IDEvento}" ${String(e.IDEvento) === selectedEventId ? 'selected' : ''}>
+            ${e.NombreEvento}
+          </option>
+        `).join("")}
+      </select>
+    </div>
+  `;
+
+  const selFiltro = $("filterJuecesEvento");
+  if (selFiltro) {
+    selFiltro.onchange = () => loadJueces();
+  }
+
+  // 2. Filtrado por Gestion_pistas
+  const asignEvento = asignaciones.filter(a => String(a.IDEvento) === String(selectedEventId));
+  const idsJuecesAsignados = [...new Set(asignEvento.map(a => String(a.IDJuez)))];
+  const rowsFiltrados = rows.filter(j => idsJuecesAsignados.includes(String(j.IDJuez)));
+
+  // Guardar en cache global para edición
+  window._juecesCache = rows;
+
+  if (rowsFiltrados.length === 0) {
+    $("juecesList").innerHTML = `<p class="hint-text">No hay jueces asignados a este evento.</p>`;
+    return;
+  }
+
+  // 3. Renderizado
+  $("juecesList").innerHTML = rowsFiltrados.map(r => {
+    const pistasJuez = [...new Set(
+      asignEvento
+        .filter(a => String(a.IDJuez) === String(r.IDJuez))
+        .map(a => a.IDPista)
+    )].sort().join(", ");
+
     const { code, name, flagUrl } = getFlagInfoFromCode(r.Nacionalidad);
+
+    const flagHtml = flagUrl
+      ? `<img class="flag" src="${flagUrl}" alt="${code}">`
+      : `<span class="flag-fallback">🌍</span>`;
+
+    const obsHtml = r.Observaciones ? `
+      <div class="juez-observaciones">
+        <strong>Observaciones:</strong> ${r.Observaciones}
+      </div>` : "";
+
+    const photoHtml = r.FotoURL
+      ? `<img src="${r.FotoURL}" alt="Foto de ${r.NombreJuez || 'Juez'}" class="juez-photo">`
+      : `<div class="juez-photo-placeholder">👤</div>`;
 
     return `
       <div class="card juez-card" onclick="window.editJuez('${r.IDJuez}')">
-        <div class="juez-head">
-          ${
-            flagUrl
-              ? `<img class="flag" src="${flagUrl}" alt="${code}">`
-              : `<span class="flag-fallback">🌍</span>`
-          }
-          <strong>${r.NombreJuez || ""}</strong>
+        <div class="juez-main">
+          <div class="juez-head">
+            ${flagHtml}
+            <strong>${r.NombreJuez || ""}</strong>
+          </div>
+          <div class="juez-body">
+            <div class="juez-info-row">
+              <span class="juez-label">Nacionalidad:</span>
+              <span>${name || r.Nacionalidad || "N/D"}</span>
+            </div>
+            <div class="juez-info-row">
+              <span class="juez-label">Pista(s) en este evento:</span>
+              <span class="pista-pill">${pistasJuez || "?"}</span>
+            </div>
+            ${obsHtml}
+          </div>
         </div>
-
-        <small class="muted juez-sub">
-          ${name} | <strong>Pista:</strong> ${r.IDPista || "?"}
-        </small>
+        ${photoHtml}
       </div>
     `;
   }).join("");
-
-  window._juecesCache = rows;
 }
+
+
 
 
 
@@ -373,13 +512,13 @@ async function loadJueces() {
 
 // 1. Mapa centralizado de países (podes moverlo arriba de todo en el archivo)
 const PAISES_MAP = {
-  AR: "ARGENTINA", BR: "BRASIL", UY: "URUGUAY", CL: "CHILE", PY: "PARAGUAY", 
+  AR: "ARGENTINA", BR: "BRASIL", UY: "URUGUAY", CL: "CHILE", PY: "PARAGUAY",
   PE: "PERÚ", CO: "COLOMBIA", BO: "BOLIVIA", EC: "ECUADOR", VE: "VENEZUELA",
-  MX: "MÉXICO", CR: "COSTA RICA", PA: "PANAMÁ", CU: "CUBA", DO: "REP. DOMINICANA", 
+  MX: "MÉXICO", CR: "COSTA RICA", PA: "PANAMÁ", CU: "CUBA", DO: "REP. DOMINICANA",
   PR: "PUERTO RICO", GT: "GUATEMALA", SV: "EL SALVADOR", US: "EEUU", CA: "CANADÁ",
-  ES: "ESPAÑA", IT: "ITALIA", FR: "FRANCIA", DE: "ALEMANIA", GB: "REINO UNIDO", 
-  PT: "PORTUGAL", CH: "SUIZA", SE: "SUECIA", NO: "NORUEGA", NL: "PAÍSES BAJOS", 
-  BE: "BÉLGICA", AT: "AUSTRIA", RU: "RUSIA", IE: "IRLANDA", PL: "POLONIA", 
+  ES: "ESPAÑA", IT: "ITALIA", FR: "FRANCIA", DE: "ALEMANIA", GB: "REINO UNIDO",
+  PT: "PORTUGAL", CH: "SUIZA", SE: "SUECIA", NO: "NORUEGA", NL: "PAÍSES BAJOS",
+  BE: "BÉLGICA", AT: "AUSTRIA", RU: "RUSIA", IE: "IRLANDA", PL: "POLONIA",
   CZ: "REP. CHECA", HU: "HUNGRÍA", JP: "JAPÓN", CN: "CHINA", KR: "COREA DEL SUR"
 };
 
@@ -401,13 +540,13 @@ function getFlagInfoFromCode(codeRaw) {
 
 
 
-
 window.editJuez = (id) => {
   const row = (window._juecesCache || []).find(r => String(r.IDJuez) === String(id));
   if (!row) return;
   $("formTitleJuez").textContent = "Editar Juez";
-  buildForm("juecesForm", ["IDJuez", "NombreJuez", "Nacionalidad", "IDPista", "Telefono", "Mail", "Redes", "Activo", "Observaciones"], row);
+  buildForm("juecesForm", ["IDJuez", "NombreJuez", "Nacionalidad", "IDPista", "Telefono", "Mail", "Redes", "Activo", "Observaciones", "FotoURL"], row);
 };
+
 
 
 
@@ -420,16 +559,16 @@ function limpiarInscripcion() {
 
   // 1. Persistencia del Evento Activo
   const activeId = localStorage.getItem("UI_ACTIVE_EVENT_ID");
-  
+
   // 2. Reset estándar de HTML (Limpia Texto y Selects básicos)
   f.reset();
 
   // 3. LIMPIEZA EXPLÍCITA DE CAMPOS OCULTOS (Evita que se arrastren Títulos, Grupos, etc.)
   if (f.elements["IDInscripcion"]) f.elements["IDInscripcion"].value = "";
-  if (f.elements["Titulos"])       f.elements["Titulos"].value = "";
-  if (f.elements["IDGrupo"])       f.elements["IDGrupo"].value = "";
-  if (f.elements["IDCategoria"])   f.elements["IDCategoria"].value = "";
-  if (f.elements["IDSexo"])        f.elements["IDSexo"].value = "";
+  if (f.elements["Titulos"]) f.elements["Titulos"].value = "";
+  if (f.elements["IDGrupo"]) f.elements["IDGrupo"].value = "";
+  if (f.elements["IDCategoria"]) f.elements["IDCategoria"].value = "";
+  if (f.elements["IDSexo"]) f.elements["IDSexo"].value = "";
   if (f.elements["Observaciones"]) f.elements["Observaciones"].value = "";
 
   // 4. Asegurar que el IDEvento se mantenga tras el reset
@@ -446,16 +585,16 @@ function limpiarInscripcion() {
 
   // 7. Reset de la lista de razas dependiente del grupo
   if ($("insRaza")) $("insRaza").innerHTML = '<option value="">Seleccione un Grupo primero</option>';
-  
+
   // 8. Restaurar estado de botones de acción
   if ($("btnEliminarInscripcion")) $("btnEliminarInscripcion").style.display = "none";
-  if ($("btnGuardarInscripcion"))  $("btnGuardarInscripcion").textContent = "Inscribir Perro";
+  if ($("btnGuardarInscripcion")) $("btnGuardarInscripcion").textContent = "Inscribir Perro";
 
   // 9. Recalcular número sugerido basado en el evento actual
   let rows = CACHE.get("Catalogo_Perros_Inscriptos") || [];
   const filtrados = rows.filter(r => String(r.IDEvento) === String(activeId));
   const proximo = sugerirNroCatalogo(filtrados);
-  
+
   if (f.elements["NumeroCatalogo"]) f.elements["NumeroCatalogo"].value = proximo;
 
   setStatus("Formulario limpio y listo.");
@@ -517,9 +656,9 @@ async function setActiveEventInscripcion(eventId) {
 
 
 async function prepareInscripcionForm() {
-  const grupos  = CACHE.get("Catalogo_Grupos") || [];
-  const cats    = CACHE.get("Catalogo_Categorias") || [];
-  const sexos   = CACHE.get("Catalogo_Sexos") || [];
+  const grupos = CACHE.get("Catalogo_Grupos") || [];
+  const cats = CACHE.get("Catalogo_Categorias") || [];
+  const sexos = CACHE.get("Catalogo_Sexos") || [];
   const titulos = CACHE.get("Catalogo_Titulos") || [];
 
   if ($("insGrupoBtns")) {
@@ -878,8 +1017,8 @@ async function loadInscripciones(filtroManual = {}) {
           <span class="insc-meta">${sexoDisplay} | ${r.NombreCategoria}</span>
 
           ${nombresTitulos
-            ? `<span style="font-size:12px;color:#666;margin-left:auto;">${nombresTitulos}</span>`
-            : `<span style="margin-left:auto;"></span>`}
+        ? `<span style="font-size:12px;color:#666;margin-left:auto;">${nombresTitulos}</span>`
+        : `<span style="margin-left:auto;"></span>`}
 
           <button type="button" class="btn" style="padding:6px 10px;font-size:12px;"
             onclick="event.stopPropagation(); window.editInscripcion('${r.IDInscripcion}')">
@@ -979,14 +1118,14 @@ window.editInscripcion = (id) => {
   if ($("btnEliminarInscripcion")) $("btnEliminarInscripcion").style.display = "inline-block";
   if ($("btnGuardarInscripcion")) $("btnGuardarInscripcion").textContent = "Actualizar Perro";
 
-  if (f.elements["IDInscripcion"])   f.elements["IDInscripcion"].value = row.IDInscripcion || "";
-  if (f.elements["IDEvento"])        f.elements["IDEvento"].value      = row.IDEvento || "";
-  if (f.elements["NumeroCatalogo"])  f.elements["NumeroCatalogo"].value = row.NumeroCatalogo || "";
-  if (f.elements["IDGrupo"])         f.elements["IDGrupo"].value        = row.IDGrupo || "";
-  if (f.elements["IDCategoria"])     f.elements["IDCategoria"].value    = row.IDCategoria || "";
-  if (f.elements["IDSexo"])          f.elements["IDSexo"].value         = row.IDSexo || "";
-  if (f.elements["Titulos"])         f.elements["Titulos"].value        = row.Titulos || "";
-  if (f.elements["Observaciones"])   f.elements["Observaciones"].value  = row.Observaciones || "";
+  if (f.elements["IDInscripcion"]) f.elements["IDInscripcion"].value = row.IDInscripcion || "";
+  if (f.elements["IDEvento"]) f.elements["IDEvento"].value = row.IDEvento || "";
+  if (f.elements["NumeroCatalogo"]) f.elements["NumeroCatalogo"].value = row.NumeroCatalogo || "";
+  if (f.elements["IDGrupo"]) f.elements["IDGrupo"].value = row.IDGrupo || "";
+  if (f.elements["IDCategoria"]) f.elements["IDCategoria"].value = row.IDCategoria || "";
+  if (f.elements["IDSexo"]) f.elements["IDSexo"].value = row.IDSexo || "";
+  if (f.elements["Titulos"]) f.elements["Titulos"].value = row.Titulos || "";
+  if (f.elements["Observaciones"]) f.elements["Observaciones"].value = row.Observaciones || "";
 
   refreshBtnVisuals("IDGrupo", row.IDGrupo);
   refreshBtnVisuals("IDCategoria", row.IDCategoria);
@@ -1014,12 +1153,15 @@ async function preparePistasForm() {
   if (selectEvento) {
     selectEvento.innerHTML = E.map(e => `<option value="${e.IDEvento}">${e.NombreEvento}</option>`).join("");
     selectEvento.onchange = () => {
-        window._juezSeleccionadoPista = null;
-        renderBotonerasPista(); 
+      window._juezSeleccionadoPista = null;
+      // LIMPIEZA: Al cambiar el evento, vaciamos el panel de juzgamiento
+      $("panelJuzgamiento").innerHTML = `<p class="hint-text">Seleccione una pista a la izquierda.</p>`;
+      renderBotonerasPista();
     };
   }
   renderBotonerasPista();
 }
+
 
 function renderBotonerasPista() {
   const idEvento = $("pistaEventoSelect")?.value;
@@ -1030,6 +1172,21 @@ function renderBotonerasPista() {
   const asign = CACHE.get("Gestion_pistas") || [];
 
   const inscEvento = insc.filter(i => String(i.IDEvento) === String(idEvento));
+
+  // --- CORTE TEMPRANO (REFORMA SEGURIDAD) ---
+  if (inscEvento.length === 0) {
+    window._juezSeleccionadoPista = null;
+    $("formPistasDinamico").innerHTML = `
+      <div class="field">
+        <p class="hint-text">No hay perros inscriptos para este evento.</p>
+      </div>
+    `;
+    $("panelJuzgamiento").innerHTML = `<p class="hint-text">No hay perros inscriptos para este evento.</p>`;
+    renderCronograma();
+    actualizarEstadoBotoneraGrupos();
+    sugerirNroCatalogo(insc);
+    return;
+  }
 
   const conteo = {};
   inscEvento.forEach(p => {
@@ -1095,13 +1252,27 @@ function renderBotonerasPista() {
 
 
 
+
 window.seleccionarJuezPista = (idJuez, pista) => {
-    document.querySelectorAll(".btn-juez-pista").forEach(b => b.classList.remove("active"));
-    const btn = $(`btnJuez_${idJuez}`);
-    if (btn) btn.classList.add("active");
-    window._juezSeleccionadoPista = { idJuez, pista };
-    actualizarEstadoBotoneraGrupos();
+  // 1. Activar visualmente el botón del juez
+  document.querySelectorAll(".btn-juez-pista").forEach(b => b.classList.remove("active"));
+  const btn = $(`btnJuez_${idJuez}`);
+  if (btn) btn.classList.add("active");
+
+  // 2. Guardar estado global
+  window._juezSeleccionadoPista = { idJuez, pista };
+
+  // 3. Sincronizar con la botonera de pistas de la derecha
+  document.querySelectorAll("#selectorPistaTrabajo .btn-opt").forEach(b => b.classList.remove("active"));
+  const btnPista = document.querySelector(`#selectorPistaTrabajo .btn-opt[data-value="${pista}"]`);
+  if (btnPista) btnPista.classList.add("active");
+
+  // 4. Renderizar el panel de juzgamiento para esa pista
+  if (pista) {
+    renderJuzgamiento(pista);
+  }
 };
+
 
 
 
@@ -1178,16 +1349,16 @@ window.toggleAsignacionGrupo = async (grupoId) => {
 
 
 function actualizarEstadoBotoneraGrupos() {
-    const asignaciones = CACHE.get("Gestion_pistas") || [];
-    const idEvento = $("pistaEventoSelect")?.value;
-    document.querySelectorAll(".btn-grupo-directo").forEach(b => b.classList.remove("active"));
-    if (!window._juezSeleccionadoPista || !idEvento) return;
-    asignaciones.forEach(a => {
-        if (String(a.IDEvento) === String(idEvento) && String(a.IDJuez) === String(window._juezSeleccionadoPista.idJuez)) {
-            const btn = $(`btnGrupoPista_${String(a.IDGrupo).replace(/\s+/g, '_')}`);
-            if (btn) btn.classList.add("active");
-        }
-    });
+  const asignaciones = CACHE.get("Gestion_pistas") || [];
+  const idEvento = $("pistaEventoSelect")?.value;
+  document.querySelectorAll(".btn-grupo-directo").forEach(b => b.classList.remove("active"));
+  if (!window._juezSeleccionadoPista || !idEvento) return;
+  asignaciones.forEach(a => {
+    if (String(a.IDEvento) === String(idEvento) && String(a.IDJuez) === String(window._juezSeleccionadoPista.idJuez)) {
+      const btn = $(`btnGrupoPista_${String(a.IDGrupo).replace(/\s+/g, '_')}`);
+      if (btn) btn.classList.add("active");
+    }
+  });
 }
 
 function renderCronograma() {
@@ -1195,9 +1366,9 @@ function renderCronograma() {
   if (!idEvento) { $("cronogramaPistas").innerHTML = "Seleccione un evento."; return; }
   const items = data.filter(p => String(p.IDEvento) === String(idEvento));
   $("cronogramaPistas").innerHTML = items.map(p => {
-        const jNom = J.find(j => String(j.IDJuez) === String(p.IDJuez))?.NombreJuez || p.IDJuez;
-        return `<div class="cronograma-item"><span><strong>Pista ${p.IDPista}</strong> | ${p.IDGrupo} | ${jNom}</span><button onclick="window.borrarAsignacionPista('${p.IDAsignacion}')" class="btn-del">✕</button></div>`;
-    }).join("") || "No hay asignaciones.";
+    const jNom = J.find(j => String(j.IDJuez) === String(p.IDJuez))?.NombreJuez || p.IDJuez;
+    return `<div class="cronograma-item"><span><strong>Pista ${p.IDPista}</strong> | ${p.IDGrupo} | ${jNom}</span><button onclick="window.borrarAsignacionPista('${p.IDAsignacion}')" class="btn-del">✕</button></div>`;
+  }).join("") || "No hay asignaciones.";
 }
 
 
@@ -1234,34 +1405,46 @@ window.borrarAsignacionPista = async (id) => {
 
 
 async function renderJuzgamiento(pistaNro) {
+  // 1. Obtener el evento activo desde el selector superior
+  const idEventoActivo = $("pistaEventoSelect")?.value;
+  if (!idEventoActivo) {
+    $("panelJuzgamiento").innerHTML = `<p class="hint-text">Seleccione un evento arriba para comenzar.</p>`;
+    return;
+  }
+
   const asign = CACHE.get("Gestion_pistas") || [],
-        insc = CACHE.get("Catalogo_Perros_Inscriptos") || [],
-        razas = CACHE.get("Catalogo_Razas") || [],
-        cats = CACHE.get("Catalogo_Categorias") || [],
-        sexos = CACHE.get("Catalogo_Sexos") || [],
-        titulosPosibles = CACHE.get("Catalogo_Titulos") || [],
-        res = CACHE.get("Resultados_Razas") || [],
-        J = CACHE.get("Jueces") || [];
+    insc = CACHE.get("Catalogo_Perros_Inscriptos") || [],
+    razas = CACHE.get("Catalogo_Razas") || [],
+    cats = CACHE.get("Catalogo_Categorias") || [],
+    sexos = CACHE.get("Catalogo_Sexos") || [],
+    titulosPosibles = CACHE.get("Catalogo_Titulos") || [],
+    res = CACHE.get("Resultados_Razas") || [],
+    J = CACHE.get("Jueces") || [];
 
   const catOrderMap = new Map(cats.map(c => [c.IDCategoria, parseInt(c.Orden) || 999]));
-  const asignacionesPista = asign.filter(a => String(a.IDPista) === String(pistaNro));
+
+  // 2. FILTRO CRÍTICO: Misma pista Y mismo evento
+  const asignacionesPista = asign.filter(a =>
+    String(a.IDPista) === String(pistaNro) &&
+    normalizeID(a.IDEvento) === normalizeID(idEventoActivo)
+  );
 
   if (asignacionesPista.length === 0) {
-    $("panelJuzgamiento").innerHTML = `<p class="hint-text">Pista vacía.</p>`;
+    $("panelJuzgamiento").innerHTML = `<p class="hint-text">Pista ${pistaNro} sin asignaciones para este evento.</p>`;
     return;
   }
 
   const gruposEnPista = [...new Set(asignacionesPista.map(a => String(a.IDGrupo)))].sort();
-  const juezId = asignacionesPista[0].IDJuez, eventoId = asignacionesPista[0]?.IDEvento;
+  const juezId = asignacionesPista[0].IDJuez;
+  const eventoId = asignacionesPista[0]?.IDEvento; // Debería coincidir con idEventoActivo
   const juezNombre = J.find(j => String(j.IDJuez) === String(juezId))?.NombreJuez || juezId;
 
-  if (!eventoId || eventoId === "undefined") {
-    $("panelJuzgamiento").innerHTML = `<p class="hint-text err">Error: ID Evento faltante.</p>`;
-    return;
-  }
-
+  // 3. FILTRO CRÍTICO PERROS: Mismo evento Y grupo incluido en la pista
   let perrosEnriched = insc
-    .filter(i => gruposEnPista.includes(String(i.IDGrupo)))
+    .filter(i =>
+      normalizeID(i.IDEvento) === normalizeID(idEventoActivo) &&
+      gruposEnPista.includes(String(i.IDGrupo))
+    )
     .map(p => {
       const rNom = razas.find(r => String(r.IDRaza) === String(p.IDRaza))?.NombreRaza || p.IDRaza;
       const catObj = cats.find(c => String(c.IDCategoria) === String(p.IDCategoria));
@@ -1301,73 +1484,83 @@ async function renderJuzgamiento(pistaNro) {
       lastCat = p.catNombre;
     }
 
-    const nP = normalizeID(p.IDInscripcion), nJ = normalizeID(juezId), nE = normalizeID(eventoId);
+    const nP = normalizeID(p.IDInscripcion), nJ = normalizeID(juezId), nE = normalizeID(idEventoActivo);
     const r = res.find(x =>
       normalizeID(x.IDInscripcion) === nP &&
       normalizeID(x.IDJuez) === nJ &&
       normalizeID(x.IDEvento) === nE
     );
 
+    const isAus = isTruthy(r?.Ausente);
     const tGanados = (r?.Titulo_Ganado || "").split(",").map(x => x.trim()).filter(Boolean);
     const esCachorro = ["C00", "C01"].includes(p.IDCategoria);
     const califBtns = esCachorro ? ["MP", "P"] : ["Exc", "MB", "B", "D"];
 
     html += `
-      <div class="card dog-card-compact ${r ? 'has-result' : ''}">
-        <!-- ROW 1: meta 1 línea + puesto a la derecha -->
+      <div class="card dog-card-compact ${r ? 'has-result' : ''} ${isAus ? 'is-ausente' : ''}">
         <div class="dog-topline">
           <div class="dog-oneline">
             <span class="dog-num">#${p.NumeroCatalogo}</span>
             <span class="dog-meta-inline">${p.razaNombre} | ${p.catNombre} | ${p.NombreSexo}</span>
+            ${isAus ? '<span class="ausente-badge">AUSENTE</span>' : ''}
           </div>
 
           <div class="puesto-btns">
-            ${["1","2","3","4"].map(pst => `
+            <button type="button"
+                    class="btn-xs btn-aus ${isAus ? 'active' : ''}"
+                    onclick="window.guardarResultado(event, '${p.IDInscripcion}','${juezId}','${idEventoActivo}','${!isAus}','Ausente')">
+              AUS
+            </button>
+            <div class="puesto-separator"></div>
+            ${["1", "2", "3", "4", "5", "6", "7"].map(pst => `
               <button type="button"
                       class="btn-xs ${String(r?.Puesto) === pst ? 'active' : ''}"
-                      onclick="window.guardarResultado(event, '${p.IDInscripcion}','${juezId}','${eventoId}','${pst}','Puesto')">
+                      ${isAus ? 'disabled' : ''}
+                      onclick="window.guardarResultado(event, '${p.IDInscripcion}','${juezId}','${idEventoActivo}','${pst}','Puesto')">
                 ${pst}°
               </button>
             `).join("")}
           </div>
         </div>
 
-        <!-- ROW 2: calif 1 línea -->
         <div class="rowline">
           <span class="rowlabel">Calif:</span>
           <div class="rowbuttons">
             ${califBtns.map(c => `
               <button type="button"
                       class="btn-xs ${r?.Calificacion === c ? 'active' : ''}"
-                      onclick="window.guardarResultado(event, '${p.IDInscripcion}','${juezId}','${eventoId}','${c}','Calificacion')">
+                      ${isAus ? 'disabled' : ''}
+                      onclick="window.guardarResultado(event, '${p.IDInscripcion}','${juezId}','${idEventoActivo}','${c}','Calificacion')">
                 ${c}
               </button>
             `).join("")}
           </div>
         </div>
 
-        <!-- ROW 3: títulos 1 línea (scroll horizontal) -->
         <div class="rowline">
           <span class="rowlabel">Título:</span>
           <div class="rowbuttons rowbuttons-wrap">
             ${titulosPosibles.map(t => {
-              const nom = (t.NombreTitulo || "").trim();
-              const isSelected = tGanados.includes(nom);
-              return `
+      const nom = (t.NombreTitulo || "").trim();
+      const isSelected = tGanados.includes(nom);
+      return `
                 <button type="button"
                         class="btn-xs titulo-btn ${isSelected ? 'active multi' : ''}"
-                        onclick="window.guardarResultado(event, '${p.IDInscripcion}','${juezId}','${eventoId}','${nom.replace(/'/g,"\\'")}','Titulo_Ganado', true)">
+                        ${isAus ? 'disabled' : ''}
+                        onclick="window.guardarResultado(event, '${p.IDInscripcion}','${juezId}','${idEventoActivo}','${nom.replace(/'/g, "\\'")}','Titulo_Ganado', true)">
                   ${nom}
                 </button>`;
-            }).join("")}
+    }).join("")}
           </div>
         </div>
       </div>
     `;
   });
 
-  if ($("panelJuzgamiento").innerHTML !== html) $("panelJuzgamiento").innerHTML = html;
+  $("panelJuzgamiento").innerHTML = html;
 }
+
+
 
 
 
@@ -1392,11 +1585,10 @@ async function preparePistasGruposForm() {
     <div class="field">
       <label><strong>1. Seleccionar Evento</strong></label>
       <select id="pgEvento" class="select-lg">
-        ${
-          E.length > 0
-            ? E.map(e => `<option value="${e.IDEvento}">${e.NombreEvento}</option>`).join("")
-            : '<option value="">Sin eventos cargados</option>'
-        }
+        ${E.length > 0
+      ? E.map(e => `<option value="${e.IDEvento}">${e.NombreEvento}</option>`).join("")
+      : '<option value="">Sin eventos cargados</option>'
+    }
       </select>
     </div>
 
@@ -1413,8 +1605,7 @@ async function preparePistasGruposForm() {
     <div class="field supercats-box">
       <label><strong>4. Super-Categorías a Incluir:</strong></label>
       <table class="supercats-table">
-        ${
-          Object.keys(MAPA_SUPER_CATS).map(sc => `
+        ${Object.keys(MAPA_SUPER_CATS).map(sc => `
             <tr>
               <td class="supercats-td-check">
                 <input class="supercats-check" type="checkbox" name="superCat" value="${sc}" checked onchange="autoUpdatePistaGrupo()">
@@ -1424,7 +1615,7 @@ async function preparePistasGruposForm() {
               </td>
             </tr>
           `).join("")
-        }
+    }
       </table>
     </div>
   `;
@@ -1483,7 +1674,8 @@ function renderJuzgamientoGrupos() {
         normalizeID(rr.IDEvento) === nE &&
         normalizeID(rr.IDJuez) === nJ &&
         String(rr.Puesto) === "1" &&
-        (rr.Calificacion === "Exc" || rr.Calificacion === "MP")
+        (rr.Calificacion === "Exc" || rr.Calificacion === "MP") &&
+        !isTruthy(rr.Ausente) // <<< FILTRO CRÍTICO: Excluye ausentes
       );
       return !!rRaza;
     });
@@ -1511,24 +1703,36 @@ function renderJuzgamientoGrupos() {
           normalizeID(rg.IDJuez) === nJ
         );
 
+        const isAus = isTruthy(r?.Ausente);
+
         html += `
-          <div class="card dog-card-compact grupo-card ${r ? 'has-grupo' : ''}">
+          <div class="card dog-card-compact grupo-card ${r ? 'has-grupo' : ''} ${isAus ? 'is-ausente' : ''}">
             <div class="dog-flex-row">
               <div>
                 <strong class="dog-num-lg">#${p.NumeroCatalogo}</strong>
                 <div class="dog-meta">${rNom}</div>
               </div>
+
+              <div class="grupo-aus-zone">
+                <button type="button"
+                        class="btn-xs btn-aus-grupo ${isAus ? 'active' : ''}"
+                        onclick="window.guardarResultadoGrupo(event, '${p.IDInscripcion}', 'AUS')">
+                  AUS
+                </button>
+                ${isAus ? '' : ''}
+              </div>
+
               <div class="puesto-btns">
-                ${["1","2","3","4"].map(pst => `
+                ${["1", "2", "3", "4", "5", "6", "7"].map(pst => `
                   <button class="btn-xs ${String(r?.PuestoGrupo) === pst ? 'active' : ''}"
+                          ${isAus ? 'disabled' : ''}
                           onclick="window.guardarResultadoGrupo(event, '${p.IDInscripcion}', '${pst}')">
                     ${pst}°
                   </button>
                 `).join("")}
               </div>
             </div>
-          </div>
-        `;
+          </div>`;
       });
     }
   });
@@ -1541,9 +1745,7 @@ function renderJuzgamientoGrupos() {
         <p class="wait-text">
           Los perros aparecerán aquí automáticamente cuando ganen su raza (1° Puesto).
           <br><br>
-          <strong class="danger-strong">Si te aparece este texto, seguramente cometiste un error en la carga de la raza.</strong>
-          <br>
-          Verificá si están todos los puestos o todas las calificaciones cargadas.
+          <strong class="danger-strong">Si te aparece este texto, seguramente cometiste un error en la carga de la raza o los ganadores están marcados como AUSENTES.</strong>
         </p>
         <button class="btn-solid" onclick="window.syncAll().then(() => window.renderJuzgamientoGrupos())">
           🔄 Forzar Re-sincronización
@@ -1566,50 +1768,109 @@ function renderJuzgamientoGrupos() {
 
 
 
-function renderBotonerasPistasGrupos() {
+
+
+async function renderBotonerasPistasGrupos() {
+  const idEvento = $("pgEvento")?.value || "";
+
   const J = CACHE.get("Jueces") || [];
+  const insc = CACHE.get("Catalogo_Perros_Inscriptos") || [];
+  const asign = CACHE.get("Gestion_pistas") || [];
   const G = CACHE.get("Catalogo_Grupos") || [];
 
-  const idEvento = $("pgEvento")?.value || "";
-  const asign = CACHE.get("Gestion_pistas") || [];
+  const inscEvento = insc.filter(i => String(i.IDEvento) === String(idEvento));
+  const asignEvento = asign.filter(a => String(a.IDEvento) === String(idEvento));
 
-  // ====== NUEVO: pista real por juez (según Gestion_pistas + evento) ======
-  const pistaAsignadaParaJuez = (idJuez) => {
-    if (!idEvento) return "";
-    const a = asign.find(x =>
-      String(x.IDEvento) === String(idEvento) &&
-      String(x.IDJuez) === String(idJuez) &&
-      x.IDPista !== undefined && x.IDPista !== null && String(x.IDPista) !== ""
+  // 1. Si el evento no tiene perros, limpiar todo y cortar.
+  if (inscEvento.length === 0) {
+    window._juezSeleccionadoGrupo = null;
+    window._pistaGrupoActiva = null;
+
+    $("pgJuezBotonera").innerHTML = `<p class="hint-text">No hay jueces porque este evento no tiene perros inscriptos.</p>`;
+    $("pgGrupoBotonera").innerHTML = `<p class="hint-text">No hay grupos porque este evento no tiene perros inscriptos.</p>`;
+
+    renderJuzgamientoGrupos();
+    return;
+  }
+
+  // 2. Si el evento tiene perros pero no tiene asignaciones, limpiar todo y cortar.
+  if (asignEvento.length === 0) {
+    window._juezSeleccionadoGrupo = null;
+    window._pistaGrupoActiva = null;
+
+    $("pgJuezBotonera").innerHTML = `<p class="hint-text">No hay jueces asignados para este evento.</p>`;
+    $("pgGrupoBotonera").innerHTML = `<p class="hint-text">No hay grupos asignados para este evento.</p>`;
+
+    renderJuzgamientoGrupos();
+    return;
+  }
+
+  // 3. Jueces válidos: solo jueces que tienen asignación en este evento.
+  const juecesIds = [...new Set(asignEvento.map(a => String(a.IDJuez)))];
+
+  // 4. Si quedó seleccionado un juez de otro evento, limpiar selección vieja.
+  if (
+    window._juezSeleccionadoGrupo &&
+    !juecesIds.includes(String(window._juezSeleccionadoGrupo.idJuez))
+  ) {
+    window._juezSeleccionadoGrupo = null;
+    window._pistaGrupoActiva = null;
+  }
+
+  const juecesFiltrados = J.filter(j => juecesIds.includes(String(j.IDJuez)));
+
+  $("pgJuezBotonera").innerHTML = juecesFiltrados.map(j => {
+    const asignJuez = asignEvento.find(a =>
+      String(a.IDJuez) === String(j.IDJuez) &&
+      a.IDPista !== undefined &&
+      a.IDPista !== null &&
+      String(a.IDPista) !== ""
     );
-    return a ? String(a.IDPista) : "";
-  };
 
-  // 1) Botones de Jueces
-  $("pgJuezBotonera").innerHTML = J.map(j => {
-    const pistaReal = pistaAsignadaParaJuez(j.IDJuez) || String(j.IDPista || "");
+    const pistaReal = asignJuez ? String(asignJuez.IDPista) : String(j.IDPista || "");
     const pistaTxt = pistaReal ? `Pista ${pistaReal}` : "Pista ?";
+    const isActive = String(window._juezSeleccionadoGrupo?.idJuez || "") === String(j.IDJuez);
+
     return `
       <button type="button"
-              class="btn-opt btn-juez-grupo ${window._juezSeleccionadoGrupo?.idJuez === j.IDJuez ? 'active' : ''}"
+              class="btn-opt btn-juez-grupo ${isActive ? 'active' : ''}"
               id="btnJuezGrupo_${j.IDJuez}"
-              onclick="window.seleccionarJuezGrupo('${j.IDJuez}', '${pistaReal || (j.IDPista || '')}')">
+              onclick="window.seleccionarJuezGrupo('${j.IDJuez}', '${pistaReal}')">
         ${j.NombreJuez} (${pistaTxt})
       </button>`;
-  }).join("") || '<p class="hint-text">No hay jueces cargados.</p>';
+  }).join("") || `<p class="hint-text">No hay jueces asignados para este evento.</p>`;
 
-  // 2) Botones de Grupos
-  $("pgGrupoBotonera").innerHTML = G.map(g => {
-    const gNormalizado = normalizeGrupo(g.IDGrupo);
-    const estabaActivo = window._pistaGrupoActiva?.groupIds.includes(gNormalizado);
+  // 5. Grupos válidos: solo grupos asignados a este evento y con perros en este evento.
+  const gruposConPerros = [...new Set(inscEvento.map(p => normalizeGrupo(p.IDGrupo)))];
+  const gruposAsignados = [...new Set(asignEvento.map(a => normalizeGrupo(a.IDGrupo)))];
+
+  const gruposDisponibles = G.filter(g => {
+    const gid = normalizeGrupo(g.IDGrupo);
+    return gruposAsignados.includes(gid) && gruposConPerros.includes(gid);
+  });
+
+  // 6. Si no hay grupos válidos, limpiar pista activa y mostrar mensaje.
+  if (gruposDisponibles.length === 0) {
+    window._pistaGrupoActiva = null;
+    $("pgGrupoBotonera").innerHTML = `<p class="hint-text">No hay grupos disponibles para este evento.</p>`;
+    renderJuzgamientoGrupos();
+    return;
+  }
+
+  $("pgGrupoBotonera").innerHTML = gruposDisponibles.map(g => {
+    const gid = normalizeGrupo(g.IDGrupo);
+    const isActive =
+      !!window._juezSeleccionadoGrupo &&
+      (window._pistaGrupoActiva?.groupIds || []).includes(gid);
 
     return `
       <button type="button"
-              class="btn-opt btn-grupo-item ${estabaActivo ? 'active' : ''}"
+              class="btn-opt btn-grupo-item ${isActive ? 'active' : ''}"
               data-value="${g.IDGrupo}"
               onclick="window.toggleBotonGrupo(this)">
-        ${g.IDGrupo.replace('Grupo ', 'G')}
+        ${String(g.IDGrupo).replace('Grupo ', 'G')}
       </button>`;
-  }).join("") || '<p class="hint-text">No hay grupos cargados.</p>';
+  }).join("") || `<p class="hint-text">No hay grupos disponibles para este evento.</p>`;
 
   autoUpdatePistaGrupo();
 }
@@ -1622,27 +1883,55 @@ function renderBotonerasPistasGrupos() {
 
 
 
+
 window.seleccionarJuezGrupo = (idJuez, pista) => {
+  // Activa visualmente el botón del juez
   document.querySelectorAll(".btn-juez-grupo").forEach(b => b.classList.remove("active"));
   const btn = $(`btnJuezGrupo_${idJuez}`);
   if (btn) btn.classList.add("active");
 
-  document.querySelectorAll(".btn-grupo-item").forEach(b => b.classList.remove("active"));
-
   const J = CACHE.get("Jueces") || [];
   const nombre = J.find(j => String(j.IDJuez) === String(idJuez))?.NombreJuez || idJuez;
 
+  // Guarda window._juezSeleccionadoGrupo
   window._juezSeleccionadoGrupo = { idJuez, pista, nombre };
+
+  // 1. Obtener el evento activo:
+  const idEvento = $("pgEvento")?.value || "";
+
+  // 2. Obtener asignaciones:
+  const asign = CACHE.get("Gestion_pistas") || [];
+
+  // 3. Buscar los grupos asignados a ese juez en ese evento:
+  const gruposDelJuez = asign
+    .filter(a =>
+      String(a.IDEvento) === String(idEvento) &&
+      String(a.IDJuez) === String(idJuez)
+    )
+    .map(a => normalizeGrupo(a.IDGrupo));
+
+  // 4. Limpiar todos los botones de grupo:
+  document.querySelectorAll(".btn-grupo-item").forEach(b => b.classList.remove("active"));
+
+  // 5. Activar automáticamente los botones cuyo data-value coincida con esos grupos:
+  document.querySelectorAll(".btn-grupo-item").forEach(b => {
+    const gid = normalizeGrupo(b.dataset.value);
+    if (gruposDelJuez.includes(gid)) {
+      b.classList.add("active");
+    }
+  });
+
+  // 6. Llamar:
   autoUpdatePistaGrupo();
 };
 
 window.toggleBotonGrupo = (btn) => {
-    if (!window._juezSeleccionadoGrupo) {
-        setStatus("Error: Seleccione un juez primero.", true);
-        return;
-    }
-    btn.classList.toggle("active");
-    autoUpdatePistaGrupo();
+  if (!window._juezSeleccionadoGrupo) {
+    setStatus("Error: Seleccione un juez primero.", true);
+    return;
+  }
+  btn.classList.toggle("active");
+  autoUpdatePistaGrupo();
 };
 
 function autoUpdatePistaGrupo() {
@@ -1689,31 +1978,31 @@ window.renderBotonerasPistasGrupos = renderBotonerasPistasGrupos;
 // --- 7. AYUDANTES DE UI (NO TOCAR) ---
 // --- 7. AYUDANTES DE UI ---
 function setupBtnGroup(name, multi, callback) {
-  const g = document.querySelector(`.btn-group[data-name="${name}"]`), 
-        h = document.querySelector(`input[name="${name}"]`);
-  
+  const g = document.querySelector(`.btn-group[data-name="${name}"]`),
+    h = document.querySelector(`input[name="${name}"]`);
+
   if (!g || !h) return;
 
   g.onclick = (e) => {
-    const b = e.target.closest(".btn-opt"); 
+    const b = e.target.closest(".btn-opt");
     if (!b) return;
 
     // LÓGICA MULTISELECCIÓN (Para Títulos)
-    if (multi) { 
-      b.classList.toggle("active"); 
+    if (multi) {
+      b.classList.toggle("active");
       // Agregamos o quitamos la clase 'multi' para el color verde del CSS
-      b.classList.toggle("multi"); 
-      
+      b.classList.toggle("multi");
+
       // Juntamos todos los valores seleccionados separados por coma
       h.value = Array.from(g.querySelectorAll(".btn-opt.active"))
-                     .map(x => x.dataset.value)
-                     .join(", "); 
-    } 
+        .map(x => x.dataset.value)
+        .join(", ");
+    }
     // LÓGICA SELECCIÓN ÚNICA (Para Sexo, Categoría, Grupo)
-    else { 
-      g.querySelectorAll(".btn-opt").forEach(x => x.classList.remove("active", "multi")); 
-      b.classList.add("active"); 
-      h.value = b.dataset.value; 
+    else {
+      g.querySelectorAll(".btn-opt").forEach(x => x.classList.remove("active", "multi"));
+      b.classList.add("active");
+      h.value = b.dataset.value;
     }
 
     if (callback) callback(h.value);
@@ -1721,7 +2010,7 @@ function setupBtnGroup(name, multi, callback) {
 }
 
 function refreshBtnVisuals(name, value, multi) {
-  const g = document.querySelector(`.btn-group[data-name="${name}"]`); 
+  const g = document.querySelector(`.btn-group[data-name="${name}"]`);
   if (!g) return;
 
   // Si es multi, convertimos "T01, T03" en un array ['T01', 'T03']
@@ -1731,19 +2020,19 @@ function refreshBtnVisuals(name, value, multi) {
   g.querySelectorAll(".btn-opt").forEach(b => {
     // Verificamos si el valor del botón está incluido en nuestra lista
     const estaSeleccionado = vals.includes(String(b.dataset.value).trim());
-    
+
     // Aplicamos las clases para que se vea pintado
-    b.classList.toggle("active", estaSeleccionado); 
+    b.classList.toggle("active", estaSeleccionado);
     if (multi) {
-        b.classList.toggle("multi", estaSeleccionado);
+      b.classList.toggle("multi", estaSeleccionado);
     }
   });
 }
 
 // ESTA FUNCIÓN ES LA QUE FALTA EN TU CÓDIGO Y ARREGLA EL ERROR
-function buildForm(d, f, r) { 
-  $(d).innerHTML = f.map(x => { 
-    const isID = (x.startsWith("ID") && x !== "IDPista"); 
+function buildForm(d, f, r) {
+  $(d).innerHTML = f.map(x => {
+    const isID = (x.startsWith("ID") && x !== "IDPista");
     let val = r ? (r[x] || "") : "";
 
     // A. Lógica para el Selector de Países
@@ -1772,18 +2061,18 @@ function buildForm(d, f, r) {
     if (x === "NombreEvento") extraID = 'id="eventName"';
     if (x === "Lugar") extraID = 'id="eventLugar"';
 
-    return `<div class="field"><label>${isID ? "" : x}</label><input type="${isID ? "hidden" : "text"}" ${extraID} name="${x}" value="${val}"></div>`; 
-  }).join(""); 
+    return `<div class="field"><label>${isID ? "" : x}</label><input type="${isID ? "hidden" : "text"}" ${extraID} name="${x}" value="${val}"></div>`;
+  }).join("");
 }
 
 
 
 
 
-function switchView(i) { 
-  ["viewCatalogos","viewEventos","viewJueces","viewInscripciones","viewPistas", "viewPistasGrupos", "viewBis"].forEach((v, x) => { 
-    if ($(v)) $(v).classList.toggle("hidden", x !== i); 
-  }); 
+function switchView(i) {
+  ["viewCatalogos", "viewEventos", "viewJueces", "viewInscripciones", "viewPistas", "viewPistasGrupos", "viewBis"].forEach((v, x) => {
+    if ($(v)) $(v).classList.toggle("hidden", x !== i);
+  });
 }
 
 
@@ -1888,7 +2177,7 @@ async function guardarInscripcion() {
   if (!row.IDEvento) { alert("Error: No hay evento seleccionado."); return; }
 
   const isEdit = !!(row.IDInscripcion && String(row.IDInscripcion).trim() !== "");
-  
+
   // --- PASO 1: ACTUALIZACIÓN OPTIMISTA (INSTANTÁNEA) ---
   const localId = isEdit ? row.IDInscripcion : "LOCAL_" + Date.now();
   const payload = { ...row };
@@ -1903,9 +2192,9 @@ async function guardarInscripcion() {
   }
 
   CACHE.set("Catalogo_Perros_Inscriptos", insc);
-  
+
   // Renderizado y limpieza inmediata (0ms)
-  loadInscripciones(); 
+  loadInscripciones();
   limpiarInscripcion();
   setStatus("Inscripción procesada...");
 
@@ -1956,7 +2245,7 @@ async function eliminarInscripcion() {
     let insc = CACHE.get("Catalogo_Perros_Inscriptos") || [];
     insc = insc.filter(i => String(i.IDInscripcion) !== String(id));
     CACHE.set("Catalogo_Perros_Inscriptos", insc);
-    
+
     // 2. Refrescar UI al toque
     limpiarInscripcion();
     loadInscripciones();
@@ -1973,175 +2262,144 @@ async function eliminarInscripcion() {
 
 
 window.guardarResultado = async (e, idP, idJ, idE, val, campo, esMulti = false) => {
-    // 1. Captura inmediata del evento para que no se pierda
-    if (e) {
-        if (typeof e.preventDefault === 'function') e.preventDefault();
-        if (typeof e.stopPropagation === 'function') e.stopPropagation();
+  // 1. Captura inmediata del evento para que no se pierda
+  if (e) {
+    if (typeof e.preventDefault === 'function') e.preventDefault();
+    if (typeof e.stopPropagation === 'function') e.stopPropagation();
+  }
+
+  if (!idE || idE === "undefined") return;
+
+  // 2. Identificar el botón exacto que recibió el clic
+  const btn = e?.currentTarget || e?.target?.closest?.(".btn-xs");
+  if (!btn) return;
+
+  // 3. Bloqueo de seguridad: Evita doble clic accidental mientras se procesa
+  if (btn.disabled) return;
+  btn.disabled = true;
+  setTimeout(() => { if (btn) btn.disabled = false; }, 300);
+
+  let res = CACHE.get("Resultados_Razas") || [];
+  const nP = normalizeID(idP), nJ = normalizeID(idJ), nE = normalizeID(idE);
+
+  // VALIDACIÓN DE UNICIDAD PARA PUESTOS (1° al 7°)
+  if (!esMulti && campo === "Puesto" && ["1", "2", "3", "4", "5", "6", "7"].includes(String(val))) {
+    const insc = CACHE.get("Catalogo_Perros_Inscriptos") || [];
+    const perroActual = insc.find(i => normalizeID(i.IDInscripcion) === nP);
+
+    if (perroActual) {
+      const conflicto = res.find(r =>
+        normalizeID(r.IDEvento) === nE &&
+        normalizeID(r.IDJuez) === nJ &&
+        normalizeID(r.Puesto) === String(val) &&
+        normalizeID(r.IDInscripcion) !== nP &&
+        (() => {
+          const otro = insc.find(i => normalizeID(i.IDInscripcion) === normalizeID(r.IDInscripcion));
+          return otro && otro.IDRaza === perroActual.IDRaza && otro.IDCategoria === perroActual.IDCategoria;
+        })()
+      );
+
+      if (conflicto) {
+        const otroPerro = insc.find(i => normalizeID(i.IDInscripcion) === normalizeID(conflicto.IDInscripcion));
+        alert(`¡ACCIÓN DENEGADA!\n\nYa existe un ${val}° Puesto asignado al perro #${otroPerro?.NumeroCatalogo || '??'} en esta misma Raza y Categoría.\n\nDebe desmarcar el ganador anterior antes de asignar uno nuevo.`);
+        return;
+      }
+    }
+  }
+
+  let rec = res.find(x => normalizeID(x.IDInscripcion) === nP && normalizeID(x.IDJuez) === nJ && normalizeID(x.IDEvento) === nE);
+
+  if (!rec) {
+    rec = {
+      IDResultado: "TEMP_" + Date.now(),
+      IDInscripcion: idP,
+      IDJuez: idJ,
+      IDEvento: idE,
+      Calificacion: "",
+      Puesto: "",
+      Titulo_Ganado: "",
+      Ausente: false
+    };
+    res.push(rec);
+  }
+
+  // --- REFORMA AUSENTE (BLOQUE CORREGIDO) ---
+  if (campo === "Ausente") {
+    const markingAusente = isTruthy(val);
+    rec.Ausente = markingAusente;
+
+    if (markingAusente) {
+      // Limpiar resultados al marcar como ausente
+      rec.Puesto = "";
+      rec.Calificacion = "";
+      rec.Titulo_Ganado = "";
     }
 
-    if (!idE || idE === "undefined") return;
+    // Re-render siempre (tanto al marcar como al desmarcar)
+    setTimeout(() => {
+      const curPista = Array.from(document.querySelectorAll("#selectorPistaTrabajo .btn-opt.active")).map(b => b.dataset.value)[0];
+      if (curPista) renderJuzgamiento(curPista);
+    }, 100);
 
-    // 2. Identificar el botón exacto que recibió el clic
-    const btn = e?.currentTarget || e?.target?.closest?.(".btn-xs");
-    if (!btn) return;
-
-    // 3. Bloqueo de seguridad: Evita doble clic accidental mientras se procesa
-    if (btn.disabled) return;
-    btn.disabled = true;
-    setTimeout(() => { if(btn) btn.disabled = false; }, 300);
-
-    let res = CACHE.get("Resultados_Razas") || [];
-    const nP = normalizeID(idP), nJ = normalizeID(idJ), nE = normalizeID(idE);
-    
-    // --- INICIO REFORMA: VALIDACIÓN DE UNICIDAD PARA PUESTOS (1°,2°,3°,4°) ---
-    // =====================================================================================
-    // OBJETIVO: EN LA MISMA RAZA + MISMA CATEGORÍA (EL SEXO NO IMPORTA),
-    //           NO PUEDE EXISTIR MÁS DE UN PERRO CON EL MISMO PUESTO.
-    //
-    // EJEMPLO DE LO QUE ESTABA PASANDO (MAL):
-    // - Golden Retriever | Cachorro | Macho   => 2°
-    // - Golden Retriever | Cachorro | Hembra  => 2°   <-- ESTO ES UN INCONCORDIO
-    //
-    // REGLA NUEVA (LA QUE ME PEDISTE):
-    // - Podés tener 32 sexos distintos SI QUERÉS, PERO:
-    //   "MISMA RAZA + MISMA CATEGORÍA" => NO PUEDE REPETIRSE EL PUESTO (1/2/3/4)
-    //
-    // NOTA: NO TOCO NADA DE LO DEMÁS. NO OPTIMIZO. NO REORDENO.
-    //       SOLO CAMBIO ESTA VALIDACIÓN PARA QUE APLIQUE A 1/2/3/4.
-    // =====================================================================================
-    if (!esMulti && campo === "Puesto" && ["1", "2", "3", "4"].includes(String(val))) {
-        const insc = CACHE.get("Catalogo_Perros_Inscriptos") || [];
-        const perroActual = insc.find(i => normalizeID(i.IDInscripcion) === nP);
-
-        if (perroActual) {
-            // ---------------------------------------------------------------------------------
-            // PASO 1: BUSCAR CONFLICTO
-            // ---------------------------------------------------------------------------------
-            // "conflicto" = existe OTRO registro (distinto perro) en ESTE MISMO EVENTO + JUEZ
-            // con EL MISMO PUESTO (val) y cuyo perro sea MISMA RAZA + MISMA CATEGORÍA.
-            // (Sexo NO importa, a propósito)
-            // ---------------------------------------------------------------------------------
-            const conflicto = res.find(r => 
-                normalizeID(r.IDEvento) === nE && 
-                normalizeID(r.IDJuez) === nJ && 
-                normalizeID(r.Puesto) === String(val) && 
-                normalizeID(r.IDInscripcion) !== nP &&
-                (() => {
-                    const otro = insc.find(i => normalizeID(i.IDInscripcion) === normalizeID(r.IDInscripcion));
-                    return otro && otro.IDRaza === perroActual.IDRaza && otro.IDCategoria === perroActual.IDCategoria;
-                })()
-            );
-
-            // ---------------------------------------------------------------------------------
-            // PASO 2: SI HAY CONFLICTO -> BLOQUEO TOTAL CON ALERT
-            // ---------------------------------------------------------------------------------
-            // IMPORTANTE: HACEMOS LO MISMO QUE EN 1°.
-            // "NO TE DEJO" asignar el puesto si ya existe otro perro con ese puesto.
-            // Te obligo a desmarcar manualmente el anterior para evitar accidentes.
-            // ---------------------------------------------------------------------------------
-            if (conflicto) {
-                const otroPerro = insc.find(i => normalizeID(i.IDInscripcion) === normalizeID(conflicto.IDInscripcion));
-                alert(`¡ACCIÓN DENEGADA!\n\nYa existe un ${val}° Puesto asignado al perro #${otroPerro?.NumeroCatalogo || '??'} en esta misma Raza y Categoría.\n\nDebe desmarcar el ganador anterior antes de asignar uno nuevo.`);
-                return; // Bloqueo total: no avanza la ejecución
-            }
-
-            // ---------------------------------------------------------------------------------
-            // PASO 3: (COMPATIBILIDAD CON LA LÓGICA YA EXISTENTE)
-            // ---------------------------------------------------------------------------------
-            // Dejamos la misma estructura que tenías, pero ahora aplicada al puesto val.
-            // OJO: con el return anterior, este bloque normalmente no se ejecuta cuando hay conflicto,
-            // pero lo dejamos igual para mantener tu “doble seguridad” sin romper nada.
-            // ---------------------------------------------------------------------------------
-            res.forEach(r => {
-                if (normalizeID(r.IDEvento) === nE && 
-                    normalizeID(r.IDJuez) === nJ && 
-                    normalizeID(r.Puesto) === String(val) && 
-                    normalizeID(r.IDInscripcion) !== nP) {
-                    
-                    const otroPerro = insc.find(i => normalizeID(i.IDInscripcion) === normalizeID(r.IDInscripcion));
-                    if (otroPerro && otroPerro.IDRaza === perroActual.IDRaza && otroPerro.IDCategoria === perroActual.IDCategoria) {
-                        r.Puesto = ""; 
-                    }
-                }
-            });
-        }
-    }
-    // --- FIN REFORMA ---
-
-    let rec = res.find(x => normalizeID(x.IDInscripcion) === nP && normalizeID(x.IDJuez) === nJ && normalizeID(x.IDEvento) === nE);
-    
-    if (!rec) {
-        rec = { 
-            IDResultado: "TEMP_" + Date.now(), 
-            IDInscripcion: idP, 
-            IDJuez: idJ, 
-            IDEvento: idE, 
-            Calificacion: "", 
-            Puesto: "", 
-            Titulo_Ganado: "" 
-        };
-        res.push(rec);
-    }
-
-    // Actualización visual INSTANTÁNEA sin redibujar toda la pantalla
+  } else {
+    // Carga normal de resultados (solo si no es campo Ausente)
     if (esMulti) {
-        let tArr = (rec[campo] || "").split(", ").map(s => s.trim()).filter(Boolean);
-        if (tArr.includes(val)) {
-            tArr = tArr.filter(x => x !== val);
-            btn.classList.remove("active", "multi");
-        } else {
-            tArr.push(val);
-            btn.classList.add("active", "multi");
-        }
-        rec[campo] = tArr.join(", ");
+      let tArr = (rec[campo] || "").split(", ").map(s => s.trim()).filter(Boolean);
+      if (tArr.includes(val)) {
+        tArr = tArr.filter(x => x !== val);
+        btn.classList.remove("active", "multi");
+      } else {
+        tArr.push(val);
+        btn.classList.add("active", "multi");
+      }
+      rec[campo] = tArr.join(", ");
     } else {
-        const parent = btn.parentElement;
-        if (parent) {
-            parent.querySelectorAll(".btn-xs").forEach(b => b.classList.remove("active"));
-        }
-        btn.classList.add("active");
-        rec[campo] = val;
+      const parent = btn.parentElement;
+      if (parent) {
+        parent.querySelectorAll(".btn-xs").forEach(b => b.classList.remove("active"));
+      }
+      btn.classList.add("active");
+      rec[campo] = val;
 
-        const card = btn.closest(".dog-card-compact");
-        if (card && campo === "Puesto") {
-            card.style.borderLeftColor = (val === "1") ? "#27ae60" : "#bdc3c7";
-        }
+      const card = btn.closest(".dog-card-compact");
+      if (card && campo === "Puesto") {
+        card.style.borderLeftColor = (val === "1") ? "#27ae60" : "#bdc3c7";
+      }
     }
+  }
 
-    // Guardado en memoria local inicial
-    CACHE.set("Resultados_Razas", res);
-    
-    if (window._pistaGrupoActiva) renderJuzgamientoGrupos();
+  CACHE.set("Resultados_Razas", res);
+  if (window._pistaGrupoActiva) renderJuzgamientoGrupos();
 
-    const timerKey = `raza_${nP}_${nE}`;
-    if (pendingTimers.has(timerKey)) clearTimeout(pendingTimers.get(timerKey));
-    
-    pendingTimers.set(timerKey, setTimeout(async () => {
-        setStatus("Sincronizando...");
-        const isTemp = String(rec.IDResultado).startsWith("TEMP_");
-        const payload = { ...rec };
-        if (isTemp) delete payload.IDResultado;
+  const timerKey = `raza_${nP}_${nE}`;
+  if (pendingTimers.has(timerKey)) clearTimeout(pendingTimers.get(timerKey));
 
-        try {
-            const servidor = await api("POST", {}, { 
-                action: isTemp ? "create" : "update", 
-                table: "Resultados_Razas", 
-                payload, 
-                id: isTemp ? null : rec.IDResultado 
-            });
-            
-            // --- CORRECCIÓN CRÍTICA: REEMPLAZO DE TEMP POR ID REAL ---
-            if (servidor && servidor.id) {
-                rec.IDResultado = servidor.id;
-                // Forzamos la actualización del CACHE con el ID definitivo del servidor
-                CACHE.set("Resultados_Razas", res);
-            }
-            setStatus("Guardado OK.");
-        } catch (e) {
-            setStatus("Error al guardar: " + e.message, true);
-        }
-    }, TIEMPO_ESPERA_GUARDADO));
+  pendingTimers.set(timerKey, setTimeout(async () => {
+    setStatus("Sincronizando...");
+    const isTemp = String(rec.IDResultado).startsWith("TEMP_");
+    const payload = { ...rec };
+    if (isTemp) delete payload.IDResultado;
+
+    try {
+      const servidor = await api("POST", {}, {
+        action: isTemp ? "create" : "update",
+        table: "Resultados_Razas",
+        payload,
+        id: isTemp ? null : rec.IDResultado
+      });
+
+      if (servidor && servidor.id) {
+        rec.IDResultado = servidor.id;
+        CACHE.set("Resultados_Razas", res);
+      }
+      setStatus("Guardado OK.");
+    } catch (e) {
+      setStatus("Error al guardar: " + e.message, true);
+    }
+  }, TIEMPO_ESPERA_GUARDADO));
 };
+
+
 
 // --- 6. PISTAS GRUPOS Y BIS (VERSION BLINDADA CON UNICIDAD) ---
 
@@ -2151,238 +2409,279 @@ window.guardarResultado = async (e, idP, idJ, idE, val, campo, esMulti = false) 
 
 
 window.guardarResultadoGrupo = async (e, inscId, puesto) => {
-    // =====================================================================================
-    // 0) CONFIG + BOTÓN (ESTABILIDAD TOTAL DEL CLICK)
-    // =====================================================================================
-    const config = window._pistaGrupoActiva;
+  // =====================================================================================
+  // 0) CONFIG + BOTÓN (ESTABILIDAD TOTAL DEL CLICK)
+  // =====================================================================================
+  const config = window._pistaGrupoActiva;
 
-    const btn = e?.currentTarget || e?.target?.closest?.(".btn-xs");
-    if (!btn || !config) return;
+  const btn = e?.currentTarget || e?.target?.closest?.(".btn-xs");
+  if (!btn || !config) return;
 
-    if (btn.disabled) return;
-    btn.disabled = true;
-    setTimeout(() => { if (btn) btn.disabled = false; }, 250);
+  if (btn.disabled) return;
+  btn.disabled = true;
+  setTimeout(() => { if (btn) btn.disabled = false; }, 250);
 
-    // =====================================================================================
-    // 1) DATA BASE (CACHE)
-    // =====================================================================================
-    let resG = CACHE.get("Resultados_Grupos") || [];
-    const insc = CACHE.get("Catalogo_Perros_Inscriptos") || [];
+  // =====================================================================================
+  // 1) DATA BASE (CACHE)
+  // =====================================================================================
+  let resG = CACHE.get("Resultados_Grupos") || [];
+  const insc = CACHE.get("Catalogo_Perros_Inscriptos") || [];
 
-    const nI = normalizeID(inscId);
-    const nE = normalizeID(config.eventId);
-    const nJ = normalizeID(config.judgeId);
+  const nI = normalizeID(inscId);
+  const nE = normalizeID(config.eventId);
+  const nJ = normalizeID(config.judgeId);
 
-    const perroActual = insc.find(i => normalizeID(i.IDInscripcion) === nI);
-    if (!perroActual) return;
+  const perroActual = insc.find(i => normalizeID(i.IDInscripcion) === nI);
+  if (!perroActual) return;
 
-    const grupoActual = String(perroActual.IDGrupo || "");
-    const catActual   = String(perroActual.IDCategoria || "");
+  const grupoActual = String(perroActual.IDGrupo || "");
+  const catActual = String(perroActual.IDCategoria || "");
 
-    // =====================================================================================
-    // 2) REGISTRO POR JUEZ (CLAVE REAL)
-    //    Antes: (IDInscripcion + IDEvento)
-    //    Ahora: (IDInscripcion + IDEvento + IDJuez)
-    // =====================================================================================
-    let rec = resG.find(r =>
-        normalizeID(r.IDInscripcion) === nI &&
-        normalizeID(r.IDEvento) === nE &&
-        normalizeID(r.IDJuez) === nJ
-    );
-    const isNew = !rec;
+  // =====================================================================================
+  // 2) REGISTRO POR JUEZ (CLAVE REAL)
+  //    Antes: (IDInscripcion + IDEvento)
+  //    Ahora: (IDInscripcion + IDEvento + IDJuez)
+  // =====================================================================================
+  let rec = resG.find(r =>
+    normalizeID(r.IDInscripcion) === nI &&
+    normalizeID(r.IDEvento) === nE &&
+    normalizeID(r.IDJuez) === nJ
+  );
+  const isNew = !rec;
 
-    if (isNew) {
-        rec = {
-            IDResultadoGrupo: "TEMP_" + Date.now(),
-            IDInscripcion: inscId,
-            IDEvento: config.eventId,
-            IDJuez: config.judgeId,
-            IDGrupo: grupoActual,
-            IDCategoria: catActual,
-            PuestoGrupo: ""
-        };
-        resG.push(rec);
-    } else {
-        if (!rec.IDGrupo) rec.IDGrupo = grupoActual;
-        if (!rec.IDCategoria) rec.IDCategoria = catActual;
-        if (!rec.IDJuez) rec.IDJuez = config.judgeId; // por si quedó data vieja
+  if (isNew) {
+    rec = {
+      IDResultadoGrupo: "TEMP_" + Date.now(),
+      IDInscripcion: inscId,
+      IDEvento: config.eventId,
+      IDJuez: config.judgeId,
+      IDGrupo: grupoActual,
+      IDCategoria: catActual,
+      PuestoGrupo: ""
+    };
+    resG.push(rec);
+  } else {
+    if (!rec.IDGrupo) rec.IDGrupo = grupoActual;
+    if (!rec.IDCategoria) rec.IDCategoria = catActual;
+    if (!rec.IDJuez) rec.IDJuez = config.judgeId; // por si quedó data vieja
+  }
+
+  // =====================================================================================
+  // AUSENTE — toggle de ausencia en grupo
+  // =====================================================================================
+  if (String(puesto) === "AUS") {
+    const nuevoAus = !isTruthy(rec.Ausente);
+    rec.Ausente = nuevoAus;
+
+    if (nuevoAus) {
+      rec.PuestoGrupo = "";
     }
 
-    // =====================================================================================
-    // 3) TOGGLE COHERENTE DEL PUESTO
-    // =====================================================================================
-    const nuevoPuesto = (String(rec.PuestoGrupo || "") === String(puesto)) ? "" : String(puesto);
-
-    // =====================================================================================
-    // 4) UNICIDAD (MISMO EVENTO + MISMO JUEZ + MISMO GRUPO + MISMA CATEGORÍA)
-    // =====================================================================================
-    if (nuevoPuesto !== "") {
-
-        const conflicto = resG.find(r =>
-            normalizeID(r.IDEvento) === nE &&
-            normalizeID(r.IDJuez) === nJ &&                 // <<< CLAVE: juez
-            String(r.IDGrupo || "") === grupoActual &&
-            String(r.IDCategoria || "") === catActual &&
-            String(r.PuestoGrupo || "") === String(nuevoPuesto) &&
-            normalizeID(r.IDInscripcion) !== nI
-        );
-
-        if (conflicto) {
-            const otroPerro = insc.find(i => normalizeID(i.IDInscripcion) === normalizeID(conflicto.IDInscripcion));
-            alert(
-                `¡ACCIÓN DENEGADA!\n\n` +
-                `Ya existe un ${nuevoPuesto}° Puesto asignado al perro #${otroPerro?.NumeroCatalogo || '??'}\n` +
-                `en este MISMO Grupo y Categoría.\n\n` +
-                `Debe desmarcarlo antes de elegir un nuevo ${nuevoPuesto}°.`
-            );
-            return;
-        }
-
-        // Limpieza defensiva (solo dentro del MISMO juez)
-        resG.forEach(r => {
-            if (
-                normalizeID(r.IDEvento) === nE &&
-                normalizeID(r.IDJuez) === nJ &&             // <<< CLAVE: juez
-                String(r.IDGrupo || "") === grupoActual &&
-                String(r.IDCategoria || "") === catActual &&
-                String(r.PuestoGrupo || "") === String(nuevoPuesto) &&
-                normalizeID(r.IDInscripcion) !== nI
-            ) {
-                r.PuestoGrupo = "";
-            }
-        });
-    }
-
-    // =====================================================================================
-    // 5) APLICAR EL CAMBIO AL PERRO ACTUAL
-    // =====================================================================================
-    rec.PuestoGrupo = nuevoPuesto;
-
-    // =====================================================================================
-    // 6) VISUALES
-    // =====================================================================================
-    const parent = btn.parentElement;
-    if (parent) {
-        parent.querySelectorAll(".btn-xs").forEach(b => b.classList.remove("active"));
-    }
-    if (rec.PuestoGrupo !== "") btn.classList.add("active");
-
-    // =====================================================================================
-    // 7) CACHE + RENDER
-    // =====================================================================================
     CACHE.set("Resultados_Grupos", resG);
 
     renderJuzgamientoGrupos();
     if (window._pistaBisActiva) renderJuzgamientoBis();
 
-    // =====================================================================================
-    // 8) GUARDADO EN SEGUNDO PLANO
-    // =====================================================================================
     const payload = { ...rec };
-    const isTemp = String(payload.IDResultadoGrupo).startsWith("TEMP_");
-    if (isTemp) delete payload.IDResultadoGrupo;
+    const isTempAus = String(payload.IDResultadoGrupo || "").startsWith("TEMP_");
+
+    if (isTempAus) delete payload.IDResultadoGrupo;
 
     api("POST", {}, {
-        action: isTemp ? "create" : "update",
-        table: "Resultados_Grupos",
-        payload,
-        id: isTemp ? null : rec.IDResultadoGrupo
+      action: isTempAus ? "create" : "update",
+      table: "Resultados_Grupos",
+      payload,
+      id: isTempAus ? null : rec.IDResultadoGrupo
     }).then(servidor => {
-        if (isTemp && servidor && servidor.id) rec.IDResultadoGrupo = servidor.id;
-        setStatus("Grupo sincronizado.");
+      if (isTempAus && servidor && servidor.id) {
+        rec.IDResultadoGrupo = servidor.id;
+        CACHE.set("Resultados_Grupos", resG);
+      }
+      setStatus("Grupo sincronizado.");
     }).catch(e2 => {
-        setStatus("Error al guardar grupo: " + e2.message, true);
+      setStatus("Error al guardar grupo: " + e2.message, true);
     });
+
+    return;
+  }
+
+  if (isTruthy(rec.Ausente)) return;
+
+  // =====================================================================================
+  // 3) TOGGLE COHERENTE DEL PUESTO
+  // =====================================================================================
+  const nuevoPuesto = (String(rec.PuestoGrupo || "") === String(puesto)) ? "" : String(puesto);
+
+  // =====================================================================================
+  // 4) UNICIDAD (MISMO EVENTO + MISMO JUEZ + MISMO GRUPO + MISMA CATEGORÍA)
+  // =====================================================================================
+  if (nuevoPuesto !== "") {
+
+    const conflicto = resG.find(r =>
+      normalizeID(r.IDEvento) === nE &&
+      normalizeID(r.IDJuez) === nJ &&                 // <<< CLAVE: juez
+      String(r.IDGrupo || "") === grupoActual &&
+      String(r.IDCategoria || "") === catActual &&
+      String(r.PuestoGrupo || "") === String(nuevoPuesto) &&
+      normalizeID(r.IDInscripcion) !== nI
+    );
+
+    if (conflicto) {
+      const otroPerro = insc.find(i => normalizeID(i.IDInscripcion) === normalizeID(conflicto.IDInscripcion));
+      alert(
+        `¡ACCIÓN DENEGADA!\n\n` +
+        `Ya existe un ${nuevoPuesto}° Puesto asignado al perro #${otroPerro?.NumeroCatalogo || '??'}\n` +
+        `en este MISMO Grupo y Categoría.\n\n` +
+        `Debe desmarcarlo antes de elegir un nuevo ${nuevoPuesto}°.`
+      );
+      return;
+    }
+
+    // Limpieza defensiva (solo dentro del MISMO juez)
+    resG.forEach(r => {
+      if (
+        normalizeID(r.IDEvento) === nE &&
+        normalizeID(r.IDJuez) === nJ &&             // <<< CLAVE: juez
+        String(r.IDGrupo || "") === grupoActual &&
+        String(r.IDCategoria || "") === catActual &&
+        String(r.PuestoGrupo || "") === String(nuevoPuesto) &&
+        normalizeID(r.IDInscripcion) !== nI
+      ) {
+        r.PuestoGrupo = "";
+      }
+    });
+  }
+
+  // =====================================================================================
+  // 5) APLICAR EL CAMBIO AL PERRO ACTUAL
+  // =====================================================================================
+  rec.PuestoGrupo = nuevoPuesto;
+
+  // =====================================================================================
+  // 6) VISUALES
+  // =====================================================================================
+  const parent = btn.parentElement;
+  if (parent) {
+    parent.querySelectorAll(".btn-xs").forEach(b => b.classList.remove("active"));
+  }
+  if (rec.PuestoGrupo !== "") btn.classList.add("active");
+
+  // =====================================================================================
+  // 7) CACHE + RENDER
+  // =====================================================================================
+  CACHE.set("Resultados_Grupos", resG);
+
+  renderJuzgamientoGrupos();
+  if (window._pistaBisActiva) renderJuzgamientoBis();
+
+  // =====================================================================================
+  // 8) GUARDADO EN SEGUNDO PLANO
+  // =====================================================================================
+  const payload = { ...rec };
+  const isTemp = String(payload.IDResultadoGrupo).startsWith("TEMP_");
+  if (isTemp) delete payload.IDResultadoGrupo;
+
+  api("POST", {}, {
+    action: isTemp ? "create" : "update",
+    table: "Resultados_Grupos",
+    payload,
+    id: isTemp ? null : rec.IDResultadoGrupo
+  }).then(servidor => {
+    if (isTemp && servidor && servidor.id) rec.IDResultadoGrupo = servidor.id;
+    setStatus("Grupo sincronizado.");
+  }).catch(e2 => {
+    setStatus("Error al guardar grupo: " + e2.message, true);
+  });
 };
 
 
 
- 
+
 
 
 
 async function saveEvento() {
-    const name = $("eventName").value;
-    const fechaRaw = $("eventFecha").value;
-    const lugar = $("eventLugar").value;
-    const id = document.querySelector('#eventosForm input[name="IDEvento"]')?.value;
+  const name = $("eventName").value;
+  const fechaRaw = $("eventFecha").value;
+  const lugar = $("eventLugar").value;
+  const id = document.querySelector('#eventosForm input[name="IDEvento"]')?.value;
 
-    if (!name || !fechaRaw) {
-        setStatus("Error: Nombre y Fecha son obligatorios", true);
-        return;
+  if (!name || !fechaRaw) {
+    setStatus("Error: Nombre y Fecha son obligatorios", true);
+    return;
+  }
+
+  const fechaFinal = formatFechaCristiana(fechaRaw);
+  const payload = { NombreEvento: name, Fecha: fechaFinal, Lugar: lugar };
+
+  try {
+    setStatus("Guardando...");
+    const res = await api("POST", {}, {
+      action: id ? "update" : "create",
+      table: "Eventos",
+      payload: payload,
+      id: id
+    });
+
+    // ACTUALIZACIÓN OPTIMIZADA (Sin syncAll)
+    let evs = CACHE.get("Eventos") || [];
+    if (id) {
+      const idx = evs.findIndex(e => String(e.IDEvento) === String(id));
+      if (idx !== -1) evs[idx] = { ...payload, IDEvento: id };
+    } else {
+      // Si es nuevo, usamos el ID que devuelve el servidor
+      evs.push({ ...payload, IDEvento: res.id || Date.now() });
     }
 
-    const fechaFinal = formatFechaCristiana(fechaRaw); 
-    const payload = { NombreEvento: name, Fecha: fechaFinal, Lugar: lugar };
-
-    try {
-        setStatus("Guardando...");
-        const res = await api("POST", {}, { 
-            action: id ? "update" : "create", 
-            table: "Eventos", 
-            payload: payload, 
-            id: id 
-        });
-        
-        // ACTUALIZACIÓN OPTIMIZADA (Sin syncAll)
-        let evs = CACHE.get("Eventos") || [];
-        if (id) {
-            const idx = evs.findIndex(e => String(e.IDEvento) === String(id));
-            if (idx !== -1) evs[idx] = { ...payload, IDEvento: id };
-        } else {
-            // Si es nuevo, usamos el ID que devuelve el servidor
-            evs.push({ ...payload, IDEvento: res.id || Date.now() });
-        }
-        
-        CACHE.set("Eventos", evs);
-        loadEventos(); // Refresca la lista al toque
-        $("eventosForm").reset();
-        setStatus("Evento guardado.");
-    } catch (e) {
-        setStatus("Error: " + e.message, true);
-    }
+    CACHE.set("Eventos", evs);
+    loadEventos(); // Refresca la lista al toque
+    $("eventosForm").reset();
+    setStatus("Evento guardado.");
+  } catch (e) {
+    setStatus("Error: " + e.message, true);
+  }
 }
 
 
 async function saveJuez() {
-    const f = $("juecesForm");
-    const p = {}; 
-    new FormData(f).forEach((v, k) => p[k] = v);
+  const f = $("juecesForm");
+  const p = {};
+  new FormData(f).forEach((v, k) => p[k] = v);
 
-    if (!p.NombreJuez) {
-        setStatus("Error: Nombre del juez es obligatorio", true);
-        return;
+  if (!p.NombreJuez) {
+    setStatus("Error: Nombre del juez es obligatorio", true);
+    return;
+  }
+
+  try {
+    setStatus("Guardando juez...");
+    const res = await api("POST", {}, {
+      action: p.IDJuez ? "update" : "create",
+      table: "Jueces",
+      payload: p,
+      id: p.IDJuez
+    });
+
+    // ACTUALIZACIÓN INSTANTÁNEA EN CACHE
+    let jueces = CACHE.get("Jueces") || [];
+    if (p.IDJuez) {
+      // Edición: buscamos y reemplazamos
+      const idx = jueces.findIndex(j => String(j.IDJuez) === String(p.IDJuez));
+      if (idx !== -1) jueces[idx] = { ...p };
+    } else {
+      // Nuevo: agregamos con el ID que devuelve el servidor
+      p.IDJuez = res.id || Date.now();
+      jueces.push({ ...p });
     }
 
-    try {
-        setStatus("Guardando juez...");
-        const res = await api("POST", {}, { 
-            action: p.IDJuez ? "update" : "create", 
-            table: "Jueces", 
-            payload: p, 
-            id: p.IDJuez 
-        });
-
-        // ACTUALIZACIÓN INSTANTÁNEA EN CACHE
-        let jueces = CACHE.get("Jueces") || [];
-        if (p.IDJuez) {
-            // Edición: buscamos y reemplazamos
-            const idx = jueces.findIndex(j => String(j.IDJuez) === String(p.IDJuez));
-            if (idx !== -1) jueces[idx] = { ...p };
-        } else {
-            // Nuevo: agregamos con el ID que devuelve el servidor
-            p.IDJuez = res.id || Date.now();
-            jueces.push({ ...p });
-        }
-
-        CACHE.set("Jueces", jueces);
-        loadJueces(); // Refresca la lista en 0ms
-        f.reset();
-        $("formTitleJuez").textContent = "Nuevo Juez";
-        setStatus("Juez guardado correctamente.");
-    } catch (e) {
-        setStatus("Error al guardar juez: " + e.message, true);
-    }
+    CACHE.set("Jueces", jueces);
+    loadJueces(); // Refresca la lista en 0ms
+    f.reset();
+    $("formTitleJuez").textContent = "Nuevo Juez";
+    setStatus("Juez guardado correctamente.");
+  } catch (e) {
+    setStatus("Error al guardar juez: " + e.message, true);
+  }
 }
 
 
@@ -2392,7 +2691,7 @@ function verificarAcceso() {
   if (!key) {
     const overlay = $("loginOverlay");
     if (overlay) overlay.classList.remove("hidden");
-    
+
     const btn = $("btnLogin");
     if (btn) {
       btn.onclick = async () => {
@@ -2401,7 +2700,7 @@ function verificarAcceso() {
         sessionStorage.setItem("USER_API_KEY", input);
         try {
           setStatus("Verificando...");
-          await syncAll(); 
+          await syncAll();
           if (overlay) overlay.classList.add("hidden");
           // Si entramos por primera vez tras poner la clave, forzamos el arranque
           switchView(0);
@@ -2513,28 +2812,59 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
   if ($("btnGuardar")) $("btnGuardar").onclick = saveEvento;
 
+
+
   // --- ACCIONES: JUECES ---
   if ($("btnNuevoJuez")) {
     $("btnNuevoJuez").onclick = () => {
       $("formTitleJuez").textContent = "Nuevo Juez";
-      buildForm("juecesForm", ["IDJuez", "NombreJuez", "Nacionalidad", "IDPista", "Telefono", "Mail", "Redes", "Activo", "Observaciones"]);
+      buildForm("juecesForm", ["IDJuez", "NombreJuez", "Nacionalidad", "IDPista", "Telefono", "Mail", "Redes", "Activo", "Observaciones", "FotoURL"]);
     };
   }
+
+
+
+
+
   if ($("btnGuardarJuez")) $("btnGuardarJuez").onclick = saveJuez;
 
-  // --- ACCIÓN PISTA TRABAJO ---
+  // --- ACCIÓN PISTA TRABAJO (SINCRONIZADA) ---
   if ($("selectorPistaTrabajo")) {
-    $("selectorPistaTrabajo").onclick = (e) => {
-      const b = e.target.closest(".btn-opt");
-      if (!b) return;
-      $("selectorPistaTrabajo").querySelectorAll(".btn-opt").forEach(x => x.classList.remove("active"));
-      b.classList.add("active");
-      renderJuzgamiento(b.dataset.value);
-    };
+    document.querySelectorAll("#selectorPistaTrabajo .btn-opt").forEach(b => {
+      b.onclick = () => {
+        const pista = b.dataset.value;
+        const idEvento = $("pistaEventoSelect")?.value;
+        const asign = CACHE.get("Gestion_pistas") || [];
+
+        // Marcar pista activa
+        document.querySelectorAll("#selectorPistaTrabajo .btn-opt").forEach(x => x.classList.remove("active"));
+        b.classList.add("active");
+
+        // Buscar asignación para este evento y pista
+        const asignacion = asign.find(a =>
+          String(a.IDEvento) === String(idEvento) &&
+          String(a.IDPista) === String(pista)
+        );
+
+        // Limpiar botones de jueces
+        document.querySelectorAll(".btn-juez-pista").forEach(btnJ => btnJ.classList.remove("active"));
+
+        if (asignacion) {
+          const idJuez = asignacion.IDJuez;
+          window._juezSeleccionadoPista = { idJuez, pista };
+          const btnJuez = $(`btnJuez_${idJuez}`);
+          if (btnJuez) btnJuez.classList.add("active");
+        } else {
+          window._juezSeleccionadoPista = null;
+        }
+
+        renderJuzgamiento(pista);
+      };
+    });
   }
 
   // --- FINAL DE LA CARGA ---
-if (verificarAcceso()) {
+  if (verificarAcceso()) {
     switchView(0);
     syncAll().then(() => loadCatalog());
   }
@@ -2558,6 +2888,7 @@ if (verificarAcceso()) {
 
 
 
+
 // ============================================================================
 // >>>>> AGREGADO PARA FINALES BEST IN SHOW (BIS) <<<<<
 // Pegar esto AL FINAL ABSOLUTO de app.js, sin tocar el código anterior.
@@ -2568,10 +2899,10 @@ window._pistaBisActiva = null;
 
 // Mapeo de qué categorías entran en cada Gran Final de BIS
 const MAPA_BIS_FINALES = {
-  "BIS CACHORROS": ["C00", "C01"],       
-  "BIS JOVENES": ["C02", "C03"],         
-  "BIS ADULTOS": ["C04", "C05", "C06", "C07"], 
-  "BIS VETERANOS": ["C08"]               
+  "BIS CACHORROS": ["C00", "C01"],
+  "BIS JOVENES": ["C02", "C03"],
+  "BIS ADULTOS": ["C04", "C05", "C06", "C07"],
+  "BIS VETERANOS": ["C08"]
 };
 
 // --- BIS: FORMULARIO (Evento + Botonera Jueces con Pista) ---
@@ -2579,29 +2910,18 @@ async function prepareBisForm() {
   const J = CACHE.get("Jueces") || [];
   const E = CACHE.get("Eventos") || [];
   const asign = CACHE.get("Gestion_pistas") || [];
+  const insc = CACHE.get("Catalogo_Perros_Inscriptos") || [];
 
   window._juezSeleccionadoBis = null;
-
-  const pistaAsignadaParaJuez = (eventId, juezId) => {
-    const a = asign.find(x =>
-      String(x.IDEvento) === String(eventId) &&
-      String(x.IDJuez) === String(juezId) &&
-      x.IDPista !== undefined && x.IDPista !== null && String(x.IDPista) !== ""
-    );
-    if (a) return String(a.IDPista);
-    const j = J.find(jj => String(jj.IDJuez) === String(juezId));
-    return j && j.IDPista ? String(j.IDPista) : "";
-  };
 
   $("formBisDinamico").innerHTML = `
     <div class="field">
       <label>Evento de la Final</label>
       <select id="bisEvento" class="select-lg">
-        ${
-          E.length > 0
-            ? E.map(e => `<option value="${e.IDEvento}">${e.NombreEvento}</option>`).join("")
-            : `<option value="">Sin eventos</option>`
-        }
+        ${E.length > 0
+      ? E.map(e => `<option value="${e.IDEvento}">${e.NombreEvento}</option>`).join("")
+      : `<option value="">Sin eventos</option>`
+    }
       </select>
     </div>
 
@@ -2615,20 +2935,66 @@ async function prepareBisForm() {
   const renderJuecesBis = () => {
     const evId = $("bisEvento")?.value || "";
 
-    $("bisJuezBotonera").innerHTML = J.map(j => {
-      const pista = pistaAsignadaParaJuez(evId, j.IDJuez);
+    // 4. Si no hay evento
+    if (!evId) {
+      $("bisJuezBotonera").innerHTML = '<p class="hint-text">Seleccione un evento.</p>';
+      $("bisJuez").value = "";
+      window._juezSeleccionadoBis = null;
+      window._pistaBisActiva = null;
+      renderJuzgamientoBis();
+      return;
+    }
+
+    const inscEvento = insc.filter(i => String(i.IDEvento) === String(evId));
+    const asignEvento = asign.filter(a => String(a.IDEvento) === String(evId));
+
+    // 5. Si no hay perros
+    if (inscEvento.length === 0) {
+      $("bisJuezBotonera").innerHTML = '<p class="hint-text">No hay jueces porque este evento no tiene perros inscriptos.</p>';
+      $("bisJuez").value = "";
+      window._juezSeleccionadoBis = null;
+      window._pistaBisActiva = null;
+      renderJuzgamientoBis();
+      return;
+    }
+
+    // 6. Si no hay asignaciones en Gestion_pistas para este evento
+    if (asignEvento.length === 0) {
+      $("bisJuezBotonera").innerHTML = '<p class="hint-text">No hay jueces asignados para este evento.</p>';
+      $("bisJuez").value = "";
+      window._juezSeleccionadoBis = null;
+      window._pistaBisActiva = null;
+      renderJuzgamientoBis();
+      return;
+    }
+
+    // 7. Filtrar solo jueces con asignaciones reales en este evento
+    const juecesIds = [...new Set(asignEvento.map(a => String(a.IDJuez)))];
+    const juecesFiltrados = J.filter(j => juecesIds.includes(String(j.IDJuez)));
+
+    $("bisJuezBotonera").innerHTML = juecesFiltrados.map(j => {
+      // 8. Obtener la pista asignada específicamente en este evento
+      const asignJuez = asignEvento.find(a =>
+        String(a.IDJuez) === String(j.IDJuez) &&
+        a.IDPista !== undefined &&
+        a.IDPista !== null &&
+        String(a.IDPista) !== ""
+      );
+
+      const pista = asignJuez ? String(asignJuez.IDPista) : "";
       const pistaTxt = pista ? `Pista ${pista}` : "Pista ?";
-      const active = (window._juezSeleccionadoBis?.id === j.IDJuez) ? "active" : "";
+      const nombreEscapado = (j.NombreJuez || "").replace(/'/g, "\\'");
 
       return `
         <button type="button"
-                class="btn-opt btn-juez-bis ${active}"
+                class="btn-opt btn-juez-bis"
                 id="btnJuezBis_${j.IDJuez}"
-                onclick="window.seleccionarJuezBis('${j.IDJuez}', '${pista}', '${(j.NombreJuez||"").replace(/'/g,"\\'")}')">
+                onclick="window.seleccionarJuezBis('${j.IDJuez}', '${pista}', '${nombreEscapado}')">
           ${j.NombreJuez} (${pistaTxt})
         </button>`;
-    }).join("") || '<p class="hint-text">No hay jueces cargados.</p>';
+    }).join("");
 
+    // Reset de estado al cambiar/renderizar
     $("bisJuez").value = "";
     window._juezSeleccionadoBis = null;
     window._pistaBisActiva = null;
@@ -2636,13 +3002,13 @@ async function prepareBisForm() {
   };
 
   const selEv = $("bisEvento");
-  if (selEv && !selEv.dataset.bound) {
+  if (selEv) {
     selEv.onchange = renderJuecesBis;
-    selEv.dataset.bound = "1";
   }
 
   renderJuecesBis();
 }
+
 
 
 
@@ -2671,28 +3037,27 @@ function renderJuzgamientoBis() {
   $("txtPistaBisActiva").textContent = `🏆 GRAN FINAL: ${config.eventName} | Juez: ${config.judgeName} 🏆`;
   if ($("infoPistaBisActiva")) $("infoPistaBisActiva").style.display = "block";
 
-  const insc      = CACHE.get("Catalogo_Perros_Inscriptos") || [];
-  const razas     = CACHE.get("Catalogo_Razas") || [];
-  const grupos    = CACHE.get("Catalogo_Grupos") || [];
+  const insc = CACHE.get("Catalogo_Perros_Inscriptos") || [];
+  const razas = CACHE.get("Catalogo_Razas") || [];
+  const grupos = CACHE.get("Catalogo_Grupos") || [];
   const resGrupos = CACHE.get("Resultados_Grupos") || [];
-  const resBis    = CACHE.get("Resultados_BIS") || [];
+  const resBis = CACHE.get("Resultados_BIS") || [];
 
   const nE = normalizeID(config.eventId);
   const nJ = normalizeID(config.judgeId);
 
-  // ✅ Helpers: aceptan IDEvento/IDEvento y IDJuez/IDJuez
-  const evOf   = (r) => normalizeID(r?.IDEvento ?? r?.IDEvento ?? "");
-  const juezOf = (r) => normalizeID(r?.IDJuez   ?? r?.IDJuez   ?? "");
+  const evOf = (r) => normalizeID(r?.IDEvento ?? r?.IDEvento ?? "");
+  const juezOf = (r) => normalizeID(r?.IDJuez ?? r?.IDJuez ?? "");
 
   let html = "";
 
   Object.entries(MAPA_BIS_FINALES).forEach(([nombreBis, categoriasIncluidas]) => {
 
-    // ✅ Ganadores de grupo (Puesto 1°) para este evento+juez
     const ganadoresGrupo = resGrupos.filter(rg =>
       evOf(rg) === nE &&
       juezOf(rg) === nJ &&
-      String(rg.PuestoGrupo || "") === "1"
+      String(rg.PuestoGrupo || "") === "1" &&
+      !isTruthy(rg.Ausente)
     );
 
     const candidatos = ganadoresGrupo
@@ -2700,7 +3065,6 @@ function renderJuzgamientoBis() {
       .filter(Boolean)
       .filter(p => categoriasIncluidas.includes(p.IDCategoria));
 
-    // 1 por grupo
     const porGrupo = new Map();
     candidatos.forEach(p => {
       const key = String(p.IDGrupo || "");
@@ -2718,7 +3082,6 @@ function renderJuzgamientoBis() {
         const rNom = razas.find(rz => String(rz.IDRaza) === String(p.IDRaza))?.NombreRaza || p.IDRaza;
         const gNom = grupos.find(g => String(g.IDGrupo) === String(p.IDGrupo))?.NombreGrupo || p.IDGrupo;
 
-        // ✅ Buscar BIS guardado (ojo con IDEvento/IDEvento)
         const rBis = resBis.find(rb =>
           normalizeID(rb.IDInscripcion) === normalizeID(p.IDInscripcion) &&
           evOf(rb) === nE &&
@@ -2726,16 +3089,26 @@ function renderJuzgamientoBis() {
           String(rb.TipoBIS || "") === String(nombreBis || "")
         );
 
+        const isAus = isTruthy(rBis?.Ausente);
+
         html += `
-          <div class="card dog-card-compact bis-card ${rBis ? 'has-bis' : ''}">
+          <div class="card dog-card-compact bis-card ${rBis ? 'has-bis' : ''} ${isAus ? 'is-ausente' : ''}">
             <div class="bis-row">
               <div>
                 <span class="muted">[${String(gNom).replace('Grupo ', 'G')}]</span><br>
                 <strong>#${p.NumeroCatalogo}</strong> - ${rNom}
               </div>
+              <div class="bis-aus-zone">
+                <button type="button"
+                        class="btn-xs btn-aus-bis ${isAus ? 'active' : ''}"
+                        onclick="window.guardarResultadoBis(event, '${p.IDInscripcion}', 'AUS', '${nombreBis}')">
+                  AUS
+                </button>
+              </div>
               <div class="btn-group-inline puesto-btns">
-                ${["1","2","3","4"].map(pst => `
+                ${["1", "2", "3", "4", "5", "6", "7"].map(pst => `
                   <button class="btn-xs ${String(rBis?.PuestoBIS || "") === pst ? 'active' : ''}"
+                          ${isAus ? 'disabled' : ''}
                           onclick="window.guardarResultadoBis(event, '${p.IDInscripcion}', '${pst}', '${nombreBis}')">
                     ${pst}°
                   </button>
@@ -2766,20 +3139,20 @@ function renderJuzgamientoBis() {
 
 
 
+
+
+
 window.guardarResultadoBis = async (e, inscId, puesto, tipoBis) => {
   const config = window._pistaBisActiva;
 
-  // 0) Validaciones mínimas
   const btn = e?.currentTarget || e?.target?.closest?.(".btn-xs");
   if (!btn || !config || !config.eventId || !config.judgeId || !inscId || !tipoBis) return;
 
-  // 1) Evitar doble click
   if (btn.disabled) return;
   btn.disabled = true;
-  setTimeout(() => { try { btn.disabled = false; } catch {} }, 250);
+  setTimeout(() => { try { btn.disabled = false; } catch { } }, 250);
 
   try {
-    // 2) Cache base
     let resB = CACHE.get("Resultados_BIS") || [];
     const nI = normalizeID(inscId);
     const nE = normalizeID(config.eventId);
@@ -2789,7 +3162,6 @@ window.guardarResultadoBis = async (e, inscId, puesto, tipoBis) => {
 
     if (!pst) return;
 
-    // 3) Buscar/crear registro del perro (CLAVE: insc + evento + juez + tipo)
     let rec = resB.find(r =>
       normalizeID(r.IDInscripcion) === nI &&
       normalizeID(r.IDEvento) === nE &&
@@ -2797,29 +3169,63 @@ window.guardarResultadoBis = async (e, inscId, puesto, tipoBis) => {
       String(r.TipoBIS || "").trim() === tB
     );
 
-    const isNew = !rec;
-
-    if (isNew) {
+    if (!rec) {
       rec = {
         IDResultadoBIS: "TEMP_" + Date.now(),
         IDInscripcion: inscId,
         IDEvento: config.eventId,
         IDJuez: config.judgeId,
         TipoBIS: tB,
-        PuestoBIS: ""
+        PuestoBIS: "",
+        Ausente: false
       };
       resB.push(rec);
     } else {
-      // Blindaje por si venía viejo sin juez
       rec.IDJuez = rec.IDJuez || config.judgeId;
       rec.IDEvento = rec.IDEvento || config.eventId;
       rec.TipoBIS = rec.TipoBIS || tB;
     }
 
-    // 4) Toggle
+    if (pst === "AUS") {
+      const nuevoAus = !isTruthy(rec.Ausente);
+      rec.Ausente = nuevoAus;
+
+      if (nuevoAus) {
+        rec.PuestoBIS = "";
+      }
+
+      CACHE.set("Resultados_BIS", resB);
+      if (typeof renderJuzgamientoBis === "function") renderJuzgamientoBis();
+
+      const payload = { ...rec, IDJuez: config.judgeId, IDEvento: config.eventId, TipoBIS: tB };
+      const isTempAus = String(payload.IDResultadoBIS || "").startsWith("TEMP_");
+
+      if (isTempAus) delete payload.IDResultadoBIS;
+
+      api("POST", {}, {
+        action: isTempAus ? "create" : "update",
+        table: "Resultados_BIS",
+        payload,
+        id: isTempAus ? null : rec.IDResultadoBIS
+      })
+        .then((servidor) => {
+          if (isTempAus && servidor?.id) {
+            rec.IDResultadoBIS = servidor.id;
+            CACHE.set("Resultados_BIS", resB);
+          }
+          setStatus("BIS sincronizado.");
+        })
+        .catch((err) => {
+          setStatus("Error al guardar BIS: " + (err?.message || err), true);
+        });
+
+      return;
+    }
+
+    if (isTruthy(rec.Ausente)) return;
+
     const nuevoPuesto = (String(rec.PuestoBIS || "") === pst) ? "" : pst;
 
-    // 5) Unicidad: SOLO 1 por puesto en mismo evento + juez + tipoBIS
     if (nuevoPuesto) {
       resB.forEach(r => {
         if (
@@ -2834,21 +3240,16 @@ window.guardarResultadoBis = async (e, inscId, puesto, tipoBis) => {
       });
     }
 
-    // 6) Aplicar
     rec.PuestoBIS = nuevoPuesto;
 
-    // 7) UI: marcar activo solo si corresponde (y sin depender del render completo)
     const parent = btn.parentElement;
     if (parent) parent.querySelectorAll(".btn-xs").forEach(b => b.classList.remove("active"));
     if (nuevoPuesto) btn.classList.add("active");
 
-    // 8) Persistir local + re-render
     CACHE.set("Resultados_BIS", resB);
     if (typeof renderJuzgamientoBis === "function") renderJuzgamientoBis();
 
-    // 9) Sync servidor (IMPORTANTE: siempre manda IDJuez)
     const payload = { ...rec, IDJuez: config.judgeId, IDEvento: config.eventId, TipoBIS: tB };
-
     const isTemp = String(payload.IDResultadoBIS || "").startsWith("TEMP_");
     if (isTemp) delete payload.IDResultadoBIS;
 
@@ -2873,6 +3274,7 @@ window.guardarResultadoBis = async (e, inscId, puesto, tipoBis) => {
     setStatus("Error BIS: " + (err?.message || err), true);
   }
 };
+
 
 
 
@@ -2939,9 +3341,9 @@ function initBisSystem() {
 
 
 if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initBisSystem);
+  document.addEventListener("DOMContentLoaded", initBisSystem);
 } else {
-    initBisSystem();
+  initBisSystem();
 }
 // ============================================================================
 // >>>>> FIN DEL AGREGADO BIS <<<<<
@@ -2951,7 +3353,7 @@ if (document.readyState === "loading") {
 window.syncAll = syncAll;
 window.renderJuzgamientoGrupos = renderJuzgamientoGrupos;
 
-document.addEventListener("click", function(e) {
+document.addEventListener("click", function (e) {
   const card = e.target.closest(".insc-item");
   if (!card) return;
 
