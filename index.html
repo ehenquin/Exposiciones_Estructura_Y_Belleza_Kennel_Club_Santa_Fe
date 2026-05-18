@@ -1,44 +1,46 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Expo Canina - Control Panel</title>
   <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
 
-<div id="splashScreen">
-  <div class="splash-content">
-    <img src="https://i.postimg.cc/zB74zfKK/Logo-Kennel.jpg" alt="Logo Kennel" class="splash-logo">
+  <div id="splashScreen">
+    <div class="splash-content">
+      <img src="https://i.postimg.cc/zB74zfKK/Logo-Kennel.jpg" alt="Logo Kennel" class="splash-logo">
 
-    <h2 class="splash-main-title">Planilla Electrónica<br>Exposiciones de Estructura y Belleza</h2>
+      <h2 class="splash-main-title">Planilla Electrónica<br>Exposiciones de Estructura y Belleza</h2>
 
-    <div class="loading-bar-container">
-      <div class="loading-bar"></div>
+      <div class="loading-bar-container">
+        <div class="loading-bar"></div>
+      </div>
+      <p class="loading-text">Sincronizando sistema...</p>
+      <footer class="splash-footer">
+        Diseñada por <a href="https://ehenquin.github.io/LinkTreePro/" target="_blank">Dr. Eduardo R. Henquín</a> - 2026
+      </footer>
     </div>
-    <p class="loading-text">Sincronizando sistema...</p>
-    <footer class="splash-footer">
-      Diseñada por <a href="https://ehenquin.github.io/LinkTreePro/" target="_blank">Dr. Eduardo R. Henquín</a> - 2026
-    </footer>
   </div>
-</div>
 
 
-<div id="loginOverlay" class="hidden">
-  <div class="login-box card">
-    <div class="login-header">
-       <img src="https://i.postimg.cc/zB74zfKK/Logo-Kennel.jpg" alt="Logo" class="login-logo">
-       <h2>Acceso Restringido</h2>
-       <p>Ingrese la Clave de API para operar el sistema</p>
+  <div id="loginOverlay" class="hidden">
+    <div class="login-box card">
+      <div class="login-header">
+        <img src="https://i.postimg.cc/zB74zfKK/Logo-Kennel.jpg" alt="Logo" class="login-logo">
+        <h2>Acceso Restringido</h2>
+        <p>Ingrese la Clave de API para operar el sistema</p>
+      </div>
+      <div class="field">
+        <input type="password" id="inputApiKey" placeholder="API KEY">
+      </div>
+      <button id="btnLogin" class="btn primary">INGRESAR AL SISTEMA</button>
+      <p id="loginError" class="err hidden" style="margin-top:10px; font-size:12px; color: red;"></p>
     </div>
-    <div class="field">
-      <input type="password" id="inputApiKey" placeholder="API KEY">
-    </div>
-    <button id="btnLogin" class="btn primary">INGRESAR AL SISTEMA</button>
-    <p id="loginError" class="err hidden" style="margin-top:10px; font-size:12px; color: red;"></p>
   </div>
-</div>
 
 
 
@@ -219,11 +221,14 @@
           <h3>Juzgamiento en Vivo (Razas)</h3>
           <div class="field">
             <label>Seleccionar Pista para Trabajar</label>
+
             <div class="btn-group" id="selectorPistaTrabajo">
               <button type="button" class="btn-opt" data-value="1">Pista 1</button>
               <button type="button" class="btn-opt" data-value="2">Pista 2</button>
               <button type="button" class="btn-opt" data-value="3">Pista 3</button>
+              <button type="button" class="btn-opt" data-value="4">Pista 4</button>
             </div>
+
           </div>
           <div id="panelJuzgamiento">
             <p class="hint-text">Seleccione una pista para ver los perros asignados.</p>
@@ -281,4 +286,5 @@
 
   <script type="module" src="app.js"></script>
 </body>
+
 </html>
