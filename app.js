@@ -475,6 +475,17 @@ async function loadJueces() {
         <strong>Observaciones:</strong> ${r.Observaciones}
       </div>` : "";
 
+    const esLimitada = String(r.TipoJuez || "GENERAL").toUpperCase() === "LIMITADA";
+    const gruposTexto = esLimitada ? (r.GruposHabilitados || "Ninguno") : "Todos";
+
+    const tipoHtml = `
+      <div class="juez-observaciones">
+        <strong>Tipo:</strong> ${esLimitada ? "LIMITADA" : "GENERAL"}
+      </div>
+      <div class="juez-observaciones">
+        <strong>Grupos habilitados:</strong> ${gruposTexto}
+      </div>`;
+
     const photoHtml = r.FotoURL
       ? `<img src="${r.FotoURL}" alt="Foto de ${r.NombreJuez || 'Juez'}" class="juez-photo">`
       : `<div class="juez-photo-placeholder">👤</div>`;
@@ -496,6 +507,7 @@ async function loadJueces() {
               <span class="pista-pill">${pistasJuez || "?"}</span>
             </div>
             ${obsHtml}
+            ${tipoHtml}
           </div>
         </div>
         ${photoHtml}
@@ -503,6 +515,8 @@ async function loadJueces() {
     `;
   }).join("");
 }
+
+
 
 
 
@@ -544,8 +558,14 @@ window.editJuez = (id) => {
   const row = (window._juecesCache || []).find(r => String(r.IDJuez) === String(id));
   if (!row) return;
   $("formTitleJuez").textContent = "Editar Juez";
-  buildForm("juecesForm", ["IDJuez", "NombreJuez", "Nacionalidad", "IDPista", "Telefono", "Mail", "Redes", "Activo", "Observaciones", "FotoURL"], row);
+  buildForm("juecesForm", ["IDJuez", "NombreJuez", "Nacionalidad", "IDPista", "Telefono", "Mail", "Redes", "Activo", "Observaciones", "FotoURL", "TipoJuez", "GruposHabilitados"], row);
+  setTimeout(() => {
+    setupBtnGroup("GruposHabilitados", true);
+    if (window.toggleGruposHabilitados) window.toggleGruposHabilitados(row.TipoJuez || "GENERAL");
+  }, 10);
 };
+
+
 
 
 
@@ -1200,20 +1220,62 @@ function renderBotonerasPista() {
     const a = asign.find(x =>
       String(x.IDEvento) === String(idEvento) &&
       String(x.IDJuez) === String(idJuez) &&
-      x.IDPista !== undefined && x.IDPista !== null && String(x.IDPista) !== ""
+      x.IDPista !== undefined &&
+      x.IDPista !== null &&
+      String(x.IDPista) !== ""
     );
     return a ? String(a.IDPista) : "";
   };
 
+  const gruposTextoJuez = (j) => {
+    const esLimitada = String(j.TipoJuez || "GENERAL").toUpperCase() === "LIMITADA";
+    if (!esLimitada) return "";
+    return String(j.GruposHabilitados || "")
+      .split(",")
+      .map(g => g.trim())
+      .filter(Boolean)
+      .join(", ");
+  };
+
+  // Renombrar botones derechos de pistas según juez LIMITADA
+  document.querySelectorAll("#selectorPistaTrabajo .btn-opt").forEach(btn => {
+    const pistaBtn = String(btn.dataset.value || "");
+    const asignPista = asign.find(a =>
+      String(a.IDEvento) === String(idEvento) &&
+      String(a.IDPista) === pistaBtn
+    );
+
+    const juezPista = asignPista
+      ? J.find(j => String(j.IDJuez) === String(asignPista.IDJuez))
+      : null;
+
+    const gruposHab = juezPista ? gruposTextoJuez(juezPista) : "";
+
+    if (juezPista && gruposHab) {
+      btn.textContent = `Pista ${pistaBtn} - ${gruposHab}`;
+      btn.title = `${juezPista.NombreJuez} - ${gruposHab}`;
+    } else {
+      btn.textContent = `Pista ${pistaBtn}`;
+      btn.title = "";
+    }
+  });
+
   const juecesHtml = J.map(j => {
     const pistaReal = pistaAsignadaParaJuez(j.IDJuez) || String(j.IDPista || "");
     const pistaTxt = pistaReal ? `Pista ${pistaReal}` : "Pista ?";
+    const gruposHab = gruposTextoJuez(j);
+
+    const etiquetaJuez = gruposHab
+      ? `${j.NombreJuez} (${pistaTxt} - ${gruposHab})`
+      : `${j.NombreJuez} (${pistaTxt})`;
+
     return `
       <button type="button"
               class="btn-opt btn-juez-pista ${window._juezSeleccionadoPista?.idJuez === j.IDJuez ? 'active' : ''}"
               id="btnJuez_${j.IDJuez}"
+              title="${etiquetaJuez}"
               onclick="window.seleccionarJuezPista('${j.IDJuez}', '${pistaReal || (j.IDPista || '')}')">
-        ${j.NombreJuez} (${pistaTxt})
+        ${etiquetaJuez}
       </button>`;
   }).join("");
 
@@ -1434,16 +1496,39 @@ async function renderJuzgamiento(pistaNro) {
     return;
   }
 
-  const gruposEnPista = [...new Set(asignacionesPista.map(a => String(a.IDGrupo)))].sort();
   const juezId = asignacionesPista[0].IDJuez;
-  const eventoId = asignacionesPista[0]?.IDEvento; // Debería coincidir con idEventoActivo
-  const juezNombre = J.find(j => String(j.IDJuez) === String(juezId))?.NombreJuez || juezId;
+  const juezActual = J.find(j => String(j.IDJuez) === String(juezId));
+  const juezNombre = juezActual?.NombreJuez || juezId;
+  const esLimitada = String(juezActual?.TipoJuez || "GENERAL").toUpperCase() === "LIMITADA";
+
+  const gruposAsignadosPista = [...new Set(
+    asignacionesPista.map(a => normalizeGrupo(a.IDGrupo))
+  )].filter(Boolean).sort();
+
+  const gruposHabilitadosJuez = String(juezActual?.GruposHabilitados || "")
+    .split(",")
+    .map(g => normalizeGrupo(g.trim()))
+    .filter(Boolean);
+
+  let gruposEnPista = gruposAsignadosPista;
+
+  if (esLimitada) {
+    gruposEnPista = gruposHabilitadosJuez;
+
+    if (gruposEnPista.length === 0) {
+      $("panelJuzgamiento").innerHTML = `
+      <p class="hint-text">
+        El juez ${juezNombre} está marcado como LIMITADA, pero no tiene GruposHabilitados cargados.
+      </p>`;
+      return;
+    }
+  }
 
   // 3. FILTRO CRÍTICO PERROS: Mismo evento Y grupo incluido en la pista
   let perrosEnriched = insc
     .filter(i =>
       normalizeID(i.IDEvento) === normalizeID(idEventoActivo) &&
-      gruposEnPista.includes(String(i.IDGrupo))
+      gruposEnPista.includes(normalizeGrupo(i.IDGrupo))
     )
     .map(p => {
       const rNom = razas.find(r => String(r.IDRaza) === String(p.IDRaza))?.NombreRaza || p.IDRaza;
@@ -1466,6 +1551,15 @@ async function renderJuzgamiento(pistaNro) {
   );
 
   let html = `<div class="live-summary"><strong>${juezNombre}</strong> | Grupos: ${gruposEnPista.join(", ")}</div>`;
+
+  if (esLimitada) {
+    html += `
+      <div style="background:#fff3cd;color:#856404;padding:8px 10px;margin:8px 0 12px 0;border:1px solid #ffeeba;border-radius:6px;font-size:13px;font-weight:700;text-align:center;">
+        Competencia limitada / nacional — no otorga títulos.
+      </div>
+    `;
+  }
+
   let lastGrupo = "", lastRaza = "", lastCat = "";
 
   perrosEnriched.forEach(p => {
@@ -1537,22 +1631,24 @@ async function renderJuzgamiento(pistaNro) {
           </div>
         </div>
 
-        <div class="rowline">
-          <span class="rowlabel">Título:</span>
-          <div class="rowbuttons rowbuttons-wrap">
-            ${titulosPosibles.map(t => {
+        ${!esLimitada ? `
+          <div class="rowline">
+            <span class="rowlabel">Título:</span>
+            <div class="rowbuttons rowbuttons-wrap">
+              ${titulosPosibles.map(t => {
       const nom = (t.NombreTitulo || "").trim();
       const isSelected = tGanados.includes(nom);
       return `
-                <button type="button"
-                        class="btn-xs titulo-btn ${isSelected ? 'active multi' : ''}"
-                        ${isAus ? 'disabled' : ''}
-                        onclick="window.guardarResultado(event, '${p.IDInscripcion}','${juezId}','${idEventoActivo}','${nom.replace(/'/g, "\\'")}','Titulo_Ganado', true)">
-                  ${nom}
-                </button>`;
+                  <button type="button"
+                          class="btn-xs titulo-btn ${isSelected ? 'active multi' : ''}"
+                          ${isAus ? 'disabled' : ''}
+                          onclick="window.guardarResultado(event, '${p.IDInscripcion}','${juezId}','${idEventoActivo}','${nom.replace(/'/g, "\\'")}','Titulo_Ganado', true)">
+                    ${nom}
+                  </button>`;
     }).join("")}
+            </div>
           </div>
-        </div>
+        ` : ""}
       </div>
     `;
   });
@@ -1565,18 +1661,18 @@ async function renderJuzgamiento(pistaNro) {
 
 
 
-
-
-
-
-
-
-
-
 // --- 6. PISTAS GRUPOS (REFORMADO: ACCIÓN DIRECTA Y MULTISELECCIÓN) ---
 
 // Variable global para la selección del juez
 window._juezSeleccionadoGrupo = null;
+
+function getSuperCatsSeleccionadas() {
+  const checks = Array.from(document.querySelectorAll('input[name="superCat"]:checked'))
+    .map(cb => cb.value)
+    .filter(Boolean);
+
+  return checks.length ? checks : Object.keys(MAPA_SUPER_CATS);
+}
 
 async function preparePistasGruposForm() {
   const E = CACHE.get("Eventos") || [];
@@ -1624,15 +1720,14 @@ async function preparePistasGruposForm() {
   if (selectEvento) {
     selectEvento.onchange = () => {
       window._juezSeleccionadoGrupo = null;
+      window._pistaGrupoActiva = null;
       renderBotonerasPistasGrupos();
+      renderJuzgamientoGrupos();
     };
   }
 
   renderBotonerasPistasGrupos();
 }
-
-
-
 
 function renderJuzgamientoGrupos() {
   const config = window._pistaGrupoActiva;
@@ -1650,11 +1745,28 @@ function renderJuzgamientoGrupos() {
   const resR = CACHE.get("Resultados_Razas") || [];
   const resG = CACHE.get("Resultados_Grupos") || [];
   const razas = CACHE.get("Catalogo_Razas") || [];
+  const jueces = CACHE.get("Jueces") || [];
 
   const nE = normalizeID(config.eventId);
   const nJ = normalizeID(config.judgeId);
 
+  const juezActual = jueces.find(j => normalizeID(j.IDJuez) === nJ);
+  const esLimitada = String(juezActual?.TipoJuez || "GENERAL").toUpperCase() === "LIMITADA";
+  const gruposHabilitados = String(juezActual?.GruposHabilitados || "")
+    .split(",")
+    .map(g => normalizeGrupo(g.trim()))
+    .filter(Boolean);
+
   let html = "";
+
+  if (esLimitada) {
+    html += `
+      <div style="background:#fff3cd;color:#856404;padding:8px 10px;margin:8px 0 12px 0;border:1px solid #ffeeba;border-radius:6px;font-size:13px;font-weight:700;text-align:center;">
+        Competencia limitada / nacional — finaliza en Mejor de Grupo.
+      </div>
+    `;
+  }
+
   let hayPerros = false;
 
   config.superCats.forEach(scName => {
@@ -1662,8 +1774,12 @@ function renderJuzgamientoGrupos() {
 
     const candidatos = insc.filter(p => {
       if (p.IDEvento && normalizeID(p.IDEvento) !== nE) return false;
+
       const gPerro = normalizeGrupo(p.IDGrupo);
-      return config.groupIds.includes(gPerro) && idsCatIncluidas.includes(p.IDCategoria);
+      const grupoEnSeleccion = config.groupIds.includes(gPerro);
+      const grupoPermitido = esLimitada ? gruposHabilitados.includes(gPerro) : true;
+
+      return grupoEnSeleccion && grupoPermitido && idsCatIncluidas.includes(p.IDCategoria);
     });
 
     const ganadores = candidatos.filter(p => {
@@ -1674,10 +1790,16 @@ function renderJuzgamientoGrupos() {
         normalizeID(rr.IDEvento) === nE &&
         normalizeID(rr.IDJuez) === nJ &&
         String(rr.Puesto) === "1" &&
-        (rr.Calificacion === "Exc" || rr.Calificacion === "MP") &&
-        !isTruthy(rr.Ausente) // <<< FILTRO CRÍTICO: Excluye ausentes
+        !isTruthy(rr.Ausente)
       );
-      return !!rRaza;
+
+      if (!rRaza) return false;
+
+      if (esLimitada) {
+        return true;
+      }
+
+      return ["exc", "mp"].includes(normalizeID(rRaza.Calificacion));
     });
 
     ganadores.sort((a, b) => normalizeGrupo(a.IDGrupo).localeCompare(normalizeGrupo(b.IDGrupo)));
@@ -1719,7 +1841,6 @@ function renderJuzgamientoGrupos() {
                         onclick="window.guardarResultadoGrupo(event, '${p.IDInscripcion}', 'AUS')">
                   AUS
                 </button>
-                ${isAus ? '' : ''}
               </div>
 
               <div class="puesto-btns">
@@ -1738,14 +1859,16 @@ function renderJuzgamientoGrupos() {
   });
 
   if (!hayPerros) {
-    html = `
+    html += `
       <div class="wait-box">
         <span class="wait-ico">⚠️</span>
         <p class="wait-title">Esperando ganadores de raza...</p>
         <p class="wait-text">
-          Los perros aparecerán aquí automáticamente cuando ganen su raza (1° Puesto).
+          Los perros aparecerán aquí automáticamente cuando tengan 1° Puesto en raza.
           <br><br>
-          <strong class="danger-strong">Si te aparece este texto, seguramente cometiste un error en la carga de la raza o los ganadores están marcados como AUSENTES.</strong>
+          <strong class="danger-strong">
+            En jueces GENERALES también se exige Exc o MP. En jueces LIMITADA alcanza con 1° Puesto y no estar AUSENTE.
+          </strong>
         </p>
         <button class="btn-solid" onclick="window.syncAll().then(() => window.renderJuzgamientoGrupos())">
           🔄 Forzar Re-sincronización
@@ -1756,19 +1879,6 @@ function renderJuzgamientoGrupos() {
 
   container.innerHTML = html;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 async function renderBotonerasPistasGrupos() {
   const idEvento = $("pgEvento")?.value || "";
@@ -1781,7 +1891,6 @@ async function renderBotonerasPistasGrupos() {
   const inscEvento = insc.filter(i => String(i.IDEvento) === String(idEvento));
   const asignEvento = asign.filter(a => String(a.IDEvento) === String(idEvento));
 
-  // 1. Si el evento no tiene perros, limpiar todo y cortar.
   if (inscEvento.length === 0) {
     window._juezSeleccionadoGrupo = null;
     window._pistaGrupoActiva = null;
@@ -1793,7 +1902,6 @@ async function renderBotonerasPistasGrupos() {
     return;
   }
 
-  // 2. Si el evento tiene perros pero no tiene asignaciones, limpiar todo y cortar.
   if (asignEvento.length === 0) {
     window._juezSeleccionadoGrupo = null;
     window._pistaGrupoActiva = null;
@@ -1805,10 +1913,8 @@ async function renderBotonerasPistasGrupos() {
     return;
   }
 
-  // 3. Jueces válidos: solo jueces que tienen asignación en este evento.
   const juecesIds = [...new Set(asignEvento.map(a => String(a.IDJuez)))];
 
-  // 4. Si quedó seleccionado un juez de otro evento, limpiar selección vieja.
   if (
     window._juezSeleccionadoGrupo &&
     !juecesIds.includes(String(window._juezSeleccionadoGrupo.idJuez))
@@ -1831,28 +1937,57 @@ async function renderBotonerasPistasGrupos() {
     const pistaTxt = pistaReal ? `Pista ${pistaReal}` : "Pista ?";
     const isActive = String(window._juezSeleccionadoGrupo?.idJuez || "") === String(j.IDJuez);
 
+    const esLimitada = String(j.TipoJuez || "GENERAL").toUpperCase() === "LIMITADA";
+    const gruposHabTexto = String(j.GruposHabilitados || "")
+      .split(",")
+      .map(g => g.trim())
+      .filter(Boolean)
+      .join(", ");
+
+    const labelExtra = esLimitada && gruposHabTexto ? ` - ${gruposHabTexto}` : "";
+
     return `
       <button type="button"
               class="btn-opt btn-juez-grupo ${isActive ? 'active' : ''}"
               id="btnJuezGrupo_${j.IDJuez}"
               onclick="window.seleccionarJuezGrupo('${j.IDJuez}', '${pistaReal}')">
-        ${j.NombreJuez} (${pistaTxt})
+        ${j.NombreJuez} (${pistaTxt}${labelExtra})
       </button>`;
   }).join("") || `<p class="hint-text">No hay jueces asignados para este evento.</p>`;
 
-  // 5. Grupos válidos: solo grupos asignados a este evento y con perros en este evento.
-  const gruposConPerros = [...new Set(inscEvento.map(p => normalizeGrupo(p.IDGrupo)))];
-  const gruposAsignados = [...new Set(asignEvento.map(a => normalizeGrupo(a.IDGrupo)))];
+  const gruposConPerros = [...new Set(inscEvento.map(p => normalizeGrupo(p.IDGrupo)).filter(Boolean))];
 
-  const gruposDisponibles = G.filter(g => {
-    const gid = normalizeGrupo(g.IDGrupo);
-    return gruposAsignados.includes(gid) && gruposConPerros.includes(gid);
-  });
+  const juezActual = J.find(j => String(j.IDJuez) === String(window._juezSeleccionadoGrupo?.idJuez));
+  const esLimitada = String(juezActual?.TipoJuez || "GENERAL").toUpperCase() === "LIMITADA";
 
-  // 6. Si no hay grupos válidos, limpiar pista activa y mostrar mensaje.
+  let gruposDisponibles = [];
+
+  if (esLimitada) {
+    const gruposHabilitados = String(juezActual?.GruposHabilitados || "")
+      .split(",")
+      .map(g => normalizeGrupo(g.trim()))
+      .filter(Boolean);
+
+    gruposDisponibles = G.filter(g => {
+      const gid = normalizeGrupo(g.IDGrupo);
+      return gruposHabilitados.includes(gid) && gruposConPerros.includes(gid);
+    });
+  } else {
+    const gruposAsignados = [...new Set(asignEvento.map(a => normalizeGrupo(a.IDGrupo)).filter(Boolean))];
+
+    gruposDisponibles = G.filter(g => {
+      const gid = normalizeGrupo(g.IDGrupo);
+      return gruposAsignados.includes(gid) && gruposConPerros.includes(gid);
+    });
+  }
+
   if (gruposDisponibles.length === 0) {
     window._pistaGrupoActiva = null;
-    $("pgGrupoBotonera").innerHTML = `<p class="hint-text">No hay grupos disponibles para este evento.</p>`;
+
+    $("pgGrupoBotonera").innerHTML = esLimitada
+      ? `<p class="hint-text">Este juez LIMITADA no tiene grupos habilitados con perros inscriptos en este evento.</p>`
+      : `<p class="hint-text">Seleccione un juez o no hay grupos disponibles para este evento.</p>`;
+
     renderJuzgamientoGrupos();
     return;
   }
@@ -1866,63 +2001,55 @@ async function renderBotonerasPistasGrupos() {
     return `
       <button type="button"
               class="btn-opt btn-grupo-item ${isActive ? 'active' : ''}"
-              data-value="${g.IDGrupo}"
+              data-value="${gid}"
               onclick="window.toggleBotonGrupo(this)">
-        ${String(g.IDGrupo).replace('Grupo ', 'G')}
+        ${gid}
       </button>`;
-  }).join("") || `<p class="hint-text">No hay grupos disponibles para este evento.</p>`;
+  }).join("");
 
   autoUpdatePistaGrupo();
 }
 
-
-
-
-
-
-
-
-
-
 window.seleccionarJuezGrupo = (idJuez, pista) => {
-  // Activa visualmente el botón del juez
-  document.querySelectorAll(".btn-juez-grupo").forEach(b => b.classList.remove("active"));
-  const btn = $(`btnJuezGrupo_${idJuez}`);
-  if (btn) btn.classList.add("active");
-
   const J = CACHE.get("Jueces") || [];
-  const nombre = J.find(j => String(j.IDJuez) === String(idJuez))?.NombreJuez || idJuez;
-
-  // Guarda window._juezSeleccionadoGrupo
-  window._juezSeleccionadoGrupo = { idJuez, pista, nombre };
-
-  // 1. Obtener el evento activo:
+  const asign = CACHE.get("Gestion_pistas") || [];
   const idEvento = $("pgEvento")?.value || "";
 
-  // 2. Obtener asignaciones:
-  const asign = CACHE.get("Gestion_pistas") || [];
+  const juezActual = J.find(j => String(j.IDJuez) === String(idJuez));
+  const nombre = juezActual?.NombreJuez || idJuez;
 
-  // 3. Buscar los grupos asignados a ese juez en ese evento:
-  const gruposDelJuez = asign
+  window._juezSeleccionadoGrupo = { idJuez, pista, nombre };
+
+  const esLimitada = String(juezActual?.TipoJuez || "GENERAL").toUpperCase() === "LIMITADA";
+  const gruposHabilitados = String(juezActual?.GruposHabilitados || "")
+    .split(",")
+    .map(g => normalizeGrupo(g.trim()))
+    .filter(Boolean);
+
+  let gruposDelJuez = asign
     .filter(a =>
       String(a.IDEvento) === String(idEvento) &&
       String(a.IDJuez) === String(idJuez)
     )
-    .map(a => normalizeGrupo(a.IDGrupo));
+    .map(a => normalizeGrupo(a.IDGrupo))
+    .filter(Boolean);
 
-  // 4. Limpiar todos los botones de grupo:
-  document.querySelectorAll(".btn-grupo-item").forEach(b => b.classList.remove("active"));
+  if (esLimitada) {
+    gruposDelJuez = gruposHabilitados;
+  }
 
-  // 5. Activar automáticamente los botones cuyo data-value coincida con esos grupos:
-  document.querySelectorAll(".btn-grupo-item").forEach(b => {
-    const gid = normalizeGrupo(b.dataset.value);
-    if (gruposDelJuez.includes(gid)) {
-      b.classList.add("active");
+  window._pistaGrupoActiva = gruposDelJuez.length > 0
+    ? {
+      eventId: idEvento,
+      groupIds: gruposDelJuez,
+      judgeId: idJuez,
+      superCats: getSuperCatsSeleccionadas(),
+      eventName: $("pgEvento").options[$("pgEvento").selectedIndex]?.text || "",
+      judgeName: nombre
     }
-  });
+    : null;
 
-  // 6. Llamar:
-  autoUpdatePistaGrupo();
+  renderBotonerasPistasGrupos();
 };
 
 window.toggleBotonGrupo = (btn) => {
@@ -1930,23 +2057,20 @@ window.toggleBotonGrupo = (btn) => {
     setStatus("Error: Seleccione un juez primero.", true);
     return;
   }
+
   btn.classList.toggle("active");
   autoUpdatePistaGrupo();
 };
 
 function autoUpdatePistaGrupo() {
   const evId = $("pgEvento")?.value || "";
-
-  // el juez sale de la variable global (botonera), no de un <select>
   const jId = window._juezSeleccionadoGrupo?.idJuez || "";
 
-  // grupos activos (botones verdes)
   const groupIds = Array.from(document.querySelectorAll("#pgGrupoBotonera .btn-grupo-item.active"))
-    .map(b => normalizeGrupo(b.dataset.value));
+    .map(b => normalizeGrupo(b.dataset.value))
+    .filter(Boolean);
 
-  // categorías tildadas
-  const superCats = Array.from(document.querySelectorAll('input[name="superCat"]:checked'))
-    .map(cb => cb.value);
+  const superCats = getSuperCatsSeleccionadas();
 
   if (!evId || !jId || groupIds.length === 0 || superCats.length === 0) {
     window._pistaGrupoActiva = null;
@@ -1957,16 +2081,22 @@ function autoUpdatePistaGrupo() {
       judgeId: jId,
       superCats,
       eventName: $("pgEvento").options[$("pgEvento").selectedIndex]?.text || "",
-      judgeName: window._juezSeleccionadoGrupo?.nombre || ""  // si no existe, no pasa nada
+      judgeName: window._juezSeleccionadoGrupo?.nombre || ""
     };
   }
 
   renderJuzgamientoGrupos();
 }
 
-
 window.autoUpdatePistaGrupo = autoUpdatePistaGrupo;
 window.renderBotonerasPistasGrupos = renderBotonerasPistasGrupos;
+
+
+
+
+
+
+
 
 
 
@@ -2029,6 +2159,13 @@ function refreshBtnVisuals(name, value, multi) {
   });
 }
 
+window.toggleGruposHabilitados = (tipo) => {
+  const campo = document.getElementById("campoGruposHabilitados");
+  if (campo) {
+    campo.style.display = String(tipo || "").toUpperCase() === "LIMITADA" ? "block" : "none";
+  }
+};
+
 // ESTA FUNCIÓN ES LA QUE FALTA EN TU CÓDIGO Y ARREGLA EL ERROR
 function buildForm(d, f, r) {
   $(d).innerHTML = f.map(x => {
@@ -2042,6 +2179,32 @@ function buildForm(d, f, r) {
         .map(([code, nombre]) => `<option value="${code}" ${val === code ? "selected" : ""}>${nombre}</option>`)
         .join("");
       return `<div class="field"><label>Nacionalidad</label><select name="Nacionalidad"><option value="">Seleccione</option>${opciones}</select></div>`;
+    }
+
+    // Lógica para Tipo de Juez
+    if (x === "TipoJuez") {
+      const esLimitada = String(val).toUpperCase() === "LIMITADA";
+      return `<div class="field"><label>Tipo de Juez</label><select name="TipoJuez" onchange="window.toggleGruposHabilitados(this.value)"><option value="GENERAL" ${!esLimitada ? "selected" : ""}>GENERAL</option><option value="LIMITADA" ${esLimitada ? "selected" : ""}>LIMITADA</option></select></div>`;
+    }
+
+    // Lógica para Grupos Habilitados
+    if (x === "GruposHabilitados") {
+      const grupos = ["G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8", "G9", "G10"];
+      const seleccionados = (val || "").split(",").map(s => s.trim());
+      const botones = grupos.map(g => {
+        const isActive = seleccionados.includes(g) ? "active multi" : "";
+        return `<button type="button" class="btn-opt ${isActive}" data-value="${g}">${g}</button>`;
+      }).join("");
+
+      return `
+        <div class="field" id="campoGruposHabilitados" style="display: none;">
+          <label>Grupos Habilitados</label>
+          <div class="btn-group" data-name="GruposHabilitados">
+            ${botones}
+          </div>
+          <input type="hidden" name="GruposHabilitados" value="${val}">
+        </div>
+      `;
     }
 
     // B. Lógica para el Calendario (Fecha)
@@ -2064,6 +2227,8 @@ function buildForm(d, f, r) {
     return `<div class="field"><label>${isID ? "" : x}</label><input type="${isID ? "hidden" : "text"}" ${extraID} name="${x}" value="${val}"></div>`;
   }).join("");
 }
+
+
 
 
 
@@ -2281,6 +2446,16 @@ window.guardarResultado = async (e, idP, idJ, idE, val, campo, esMulti = false) 
 
   let res = CACHE.get("Resultados_Razas") || [];
   const nP = normalizeID(idP), nJ = normalizeID(idJ), nE = normalizeID(idE);
+
+  // CONTROL JUEZ LIMITADA: no puede guardar títulos
+  const jueces = CACHE.get("Jueces") || [];
+  const juezActual = jueces.find(j => normalizeID(j.IDJuez) === nJ);
+  const esLimitada = String(juezActual?.TipoJuez || "GENERAL").toUpperCase() === "LIMITADA";
+
+  if (esLimitada && campo === "Titulo_Ganado") {
+    setStatus("Este juez es de competencia limitada: no carga títulos.", true);
+    return;
+  }
 
   // VALIDACIÓN DE UNICIDAD PARA PUESTOS (1° al 7°)
   if (!esMulti && campo === "Puesto" && ["1", "2", "3", "4", "5", "6", "7"].includes(String(val))) {
@@ -2653,6 +2828,10 @@ async function saveJuez() {
     return;
   }
 
+  if (String(p.TipoJuez || "GENERAL").toUpperCase() === "GENERAL") {
+    p.GruposHabilitados = "";
+  }
+
   try {
     setStatus("Guardando juez...");
     const res = await api("POST", {}, {
@@ -2683,6 +2862,7 @@ async function saveJuez() {
     setStatus("Error al guardar juez: " + e.message, true);
   }
 }
+
 
 
 
@@ -2818,9 +2998,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   if ($("btnNuevoJuez")) {
     $("btnNuevoJuez").onclick = () => {
       $("formTitleJuez").textContent = "Nuevo Juez";
-      buildForm("juecesForm", ["IDJuez", "NombreJuez", "Nacionalidad", "IDPista", "Telefono", "Mail", "Redes", "Activo", "Observaciones", "FotoURL"]);
+      buildForm("juecesForm", ["IDJuez", "NombreJuez", "Nacionalidad", "IDPista", "Telefono", "Mail", "Redes", "Activo", "Observaciones", "FotoURL", "TipoJuez", "GruposHabilitados"]);
+      setTimeout(() => {
+        setupBtnGroup("GruposHabilitados", true);
+        if (window.toggleGruposHabilitados) window.toggleGruposHabilitados("GENERAL");
+      }, 10);
     };
   }
+
+
 
 
 
@@ -2835,6 +3021,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const pista = b.dataset.value;
         const idEvento = $("pistaEventoSelect")?.value;
         const asign = CACHE.get("Gestion_pistas") || [];
+        const J = CACHE.get("Jueces") || [];
 
         // Marcar pista activa
         document.querySelectorAll("#selectorPistaTrabajo .btn-opt").forEach(x => x.classList.remove("active"));
@@ -2852,8 +3039,22 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (asignacion) {
           const idJuez = asignacion.IDJuez;
           window._juezSeleccionadoPista = { idJuez, pista };
+
           const btnJuez = $(`btnJuez_${idJuez}`);
           if (btnJuez) btnJuez.classList.add("active");
+
+          const juez = J.find(j => String(j.IDJuez) === String(idJuez));
+          const esLimitada = String(juez?.TipoJuez || "GENERAL").toUpperCase() === "LIMITADA";
+          const gruposHab = String(juez?.GruposHabilitados || "")
+            .split(",")
+            .map(g => g.trim())
+            .filter(Boolean)
+            .join(", ");
+
+          if (esLimitada && gruposHab) {
+            b.textContent = `Pista ${pista} - ${gruposHab}`;
+            b.title = `${juez.NombreJuez} - ${gruposHab}`;
+          }
         } else {
           window._juezSeleccionadoPista = null;
         }
@@ -2970,7 +3171,10 @@ async function prepareBisForm() {
 
     // 7. Filtrar solo jueces con asignaciones reales en este evento
     const juecesIds = [...new Set(asignEvento.map(a => String(a.IDJuez)))];
-    const juecesFiltrados = J.filter(j => juecesIds.includes(String(j.IDJuez)));
+    const juecesFiltrados = J.filter(j =>
+      juecesIds.includes(String(j.IDJuez)) &&
+      String(j.TipoJuez || "GENERAL").toUpperCase() !== "LIMITADA"
+    );
 
     $("bisJuezBotonera").innerHTML = juecesFiltrados.map(j => {
       // 8. Obtener la pista asignada específicamente en este evento
