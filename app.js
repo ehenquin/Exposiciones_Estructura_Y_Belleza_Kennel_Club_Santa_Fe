@@ -409,7 +409,6 @@ async function loadJueces() {
   const eventos = CACHE.get("Eventos") || [];
   const asignaciones = CACHE.get("Gestion_pistas") || [];
 
-  // 1. Manejo del Filtro de Evento
   const filterContainerId = "juecesFilterContainer";
   let filterContainer = $(filterContainerId);
 
@@ -427,7 +426,7 @@ async function loadJueces() {
 
   filterContainer.innerHTML = `
     <div class="field" style="max-width: 450px; margin-bottom: 20px; background: #f4f7f9; padding: 12px; border-radius: 10px; border: 1px solid #3498db;">
-      <label style="color: #2980b9; font-weight: bold;">🌍 Ver Jueces de la Exposición:</label>
+      <label style="color: #2980b9; font-weight: bold;">🌍 Exposición de referencia:</label>
       <select id="filterJuecesEvento" class="select-lg">
         ${eventos.map(e => `
           <option value="${e.IDEvento}" ${String(e.IDEvento) === selectedEventId ? 'selected' : ''}>
@@ -435,6 +434,9 @@ async function loadJueces() {
           </option>
         `).join("")}
       </select>
+      <small class="hint-text">
+        Esta vista muestra todos los jueces cargados. La pista se informa solo si ya existe asignación en Gestion_pistas.
+      </small>
     </div>
   `;
 
@@ -443,25 +445,23 @@ async function loadJueces() {
     selFiltro.onchange = () => loadJueces();
   }
 
-  // 2. Filtrado por Gestion_pistas
   const asignEvento = asignaciones.filter(a => String(a.IDEvento) === String(selectedEventId));
-  const idsJuecesAsignados = [...new Set(asignEvento.map(a => String(a.IDJuez)))];
-  const rowsFiltrados = rows.filter(j => idsJuecesAsignados.includes(String(j.IDJuez)));
 
-  // Guardar en cache global para edición
+  // CLAVE: NO filtrar jueces por Gestion_pistas.
+  // La vista Jueces debe mostrar todos los jueces cargados.
   window._juecesCache = rows;
 
-  if (rowsFiltrados.length === 0) {
-    $("juecesList").innerHTML = `<p class="hint-text">No hay jueces asignados a este evento.</p>`;
+  if (rows.length === 0) {
+    $("juecesList").innerHTML = `<p class="hint-text">No hay jueces cargados todavía.</p>`;
     return;
   }
 
-  // 3. Renderizado
-  $("juecesList").innerHTML = rowsFiltrados.map(r => {
+  $("juecesList").innerHTML = rows.map(r => {
     const pistasJuez = [...new Set(
       asignEvento
         .filter(a => String(a.IDJuez) === String(r.IDJuez))
         .map(a => a.IDPista)
+        .filter(Boolean)
     )].sort().join(", ");
 
     const { code, name, flagUrl } = getFlagInfoFromCode(r.Nacionalidad);
@@ -491,7 +491,7 @@ async function loadJueces() {
       : `<div class="juez-photo-placeholder">👤</div>`;
 
     return `
-      <div class="card juez-card" onclick="window.editJuez('${r.IDJuez}')">
+      <div class="card juez-card" onclick="window.editJuez('${String(r.IDJuez).replace(/'/g, "\\'")}')">
         <div class="juez-main">
           <div class="juez-head">
             ${flagHtml}
@@ -504,7 +504,7 @@ async function loadJueces() {
             </div>
             <div class="juez-info-row">
               <span class="juez-label">Pista(s) en este evento:</span>
-              <span class="pista-pill">${pistasJuez || "?"}</span>
+              <span class="pista-pill">${pistasJuez || "Sin asignar"}</span>
             </div>
             ${obsHtml}
             ${tipoHtml}
