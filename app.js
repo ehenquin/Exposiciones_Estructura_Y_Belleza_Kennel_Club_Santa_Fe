@@ -30,10 +30,37 @@ const MAPA_SUPER_CATS = {
   "VETERANOS": ["C08"]
 };
 
+const ROLES_FINAL_RAZA = [
+  "MEJOR_CACHORRO_RAZA",
+  "SEXO_OPUESTO_CACHORRO",
+  "MEJOR_JOVEN_MACHO",
+  "MEJOR_JOVEN_HEMBRA",
+  "MEJOR_JOVEN_RAZA",
+  "SEXO_OPUESTO_JOVEN",
+  "MEJOR_MACHO",
+  "MEJOR_HEMBRA",
+  "MEJOR_DE_RAZA",
+  "SEXO_OPUESTO_RAZA",
+  "MEJOR_VETERANO_RAZA",
+  "SEXO_OPUESTO_VETERANO"
+];
+
+const FINAL_GRUPO_CATEGORIAS = Object.keys(MAPA_SUPER_CATS);
+
 // --- FUNCIONES AUXILIARES IMPORTANTES ---
 const normalizeID = (id) => String(id || "").trim().toLowerCase();
 function isTruthy(v) {
   return ["true", "1", "si", "sí", "yes", "x"].includes(String(v || "").trim().toLowerCase());
+}
+function splitMulti(v) {
+  return String(v || "")
+    .split(",")
+    .map(x => x.trim())
+    .filter(Boolean);
+}
+function multiHas(v, item) {
+  const needle = String(item || "").trim();
+  return splitMulti(v).some(x => String(x).trim() === needle);
 }
 // --- NORMALIZADOR DE GRUPO: "Grupo 1" y "G1" pasan a ser "G1" ---
 function normalizeGrupo(gr) {
@@ -50,6 +77,17 @@ function normalizeGrupo(gr) {
   // Si no matchea nada, lo dejo igual (pero trimmeado)
   return s;
 }
+
+
+function ordenarGruposNatural(lista) {
+  return [...(lista || [])].sort((a, b) => {
+    const na = parseInt(String(a).replace(/\D/g, ""), 10) || 0;
+    const nb = parseInt(String(b).replace(/\D/g, ""), 10) || 0;
+    return na - nb;
+  });
+}
+
+
 
 const eventoOf = (r) => normalizeID(r?.IDEvento ?? r?.IDEvento ?? "");
 const juezOf = (r) => normalizeID(r?.IDJuez ?? r?.IDJuez ?? "");
@@ -306,7 +344,7 @@ async function loadCatalog() {
     } else if (table === "Resultados_Grupos") {
       const consolidadosG = new Map();
       rows.forEach(r => {
-        const claveUnica = `${r.IDInscripcion}_${r.IDEvento}_${r.IDGrupo}`;
+        const claveUnica = `${r.IDInscripcion}_${r.IDEvento}_${r.IDJuez}_${r.FinalGrupoCategoria || ""}`;
         if (!consolidadosG.has(claveUnica)) {
           consolidadosG.set(claveUnica, { ...r });
         } else {
@@ -1214,7 +1252,7 @@ function renderBotonerasPista() {
     if (g) conteo[g] = (conteo[g] || 0) + 1;
   });
 
-  const gruposUnicos = Object.keys(conteo).sort();
+  const gruposUnicos = ordenarGruposNatural(Object.keys(conteo));
 
   const pistaAsignadaParaJuez = (idJuez) => {
     const a = asign.find(x =>
@@ -1329,7 +1367,13 @@ window.seleccionarJuezPista = (idJuez, pista) => {
   const btnPista = document.querySelector(`#selectorPistaTrabajo .btn-opt[data-value="${pista}"]`);
   if (btnPista) btnPista.classList.add("active");
 
-  // 4. Renderizar el panel de juzgamiento para esa pista
+  // 4. Actualizar visualmente los grupos del juez seleccionado
+  actualizarEstadoBotoneraGrupos();
+
+  // 5. Refrescar cronograma
+  renderCronograma();
+
+  // 6. Renderizar el panel de juzgamiento para esa pista
   if (pista) {
     renderJuzgamiento(pista);
   }
@@ -1501,9 +1545,9 @@ async function renderJuzgamiento(pistaNro) {
   const juezNombre = juezActual?.NombreJuez || juezId;
   const esLimitada = String(juezActual?.TipoJuez || "GENERAL").toUpperCase() === "LIMITADA";
 
-  const gruposAsignadosPista = [...new Set(
+  const gruposAsignadosPista = ordenarGruposNatural([...new Set(
     asignacionesPista.map(a => normalizeGrupo(a.IDGrupo))
-  )].filter(Boolean).sort();
+  )].filter(Boolean));
 
   const gruposHabilitadosJuez = String(juezActual?.GruposHabilitados || "")
     .split(",")
@@ -1524,11 +1568,42 @@ async function renderJuzgamiento(pistaNro) {
     }
   }
 
+  // 2.1. FILTRO VISUAL INTERNO DE GRUPOS PARA CARGA RÁPIDA
+  // Este filtro NO guarda nada en Sheets.
+  // Solo sirve para mostrar en pantalla uno o todos los grupos asignados a la pista/juez actual.
+  if (!window._filtroGrupoRaza) {
+    window._filtroGrupoRaza = "TODOS";
+  }
+
+  const contextoFiltro = `${idEventoActivo}_${juezId}_${pistaNro}`;
+
+  if (window._filtroGrupoRazaContexto !== contextoFiltro) {
+    window._filtroGrupoRazaContexto = contextoFiltro;
+    window._filtroGrupoRaza = "TODOS";
+    window._filtroRazaJuzgamiento = "TODAS";
+  }
+
+  if (
+    window._filtroGrupoRaza !== "TODOS" &&
+    !gruposEnPista.includes(window._filtroGrupoRaza)
+  ) {
+    window._filtroGrupoRaza = "TODOS";
+    window._filtroRazaJuzgamiento = "TODAS";
+  }
+
+  const grupoFiltroActivo = window._filtroGrupoRaza || "TODOS";
+  const gruposParaMostrar = grupoFiltroActivo === "TODOS"
+    ? gruposEnPista
+    : [grupoFiltroActivo];
+
+  const pistaSafe = String(pistaNro).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+
   // 3. FILTRO CRÍTICO PERROS: Mismo evento Y grupo incluido en la pista
+  // Si hay filtro visual activo, muestra solo ese grupo. Si está en TODOS, muestra todos.
   let perrosEnriched = insc
     .filter(i =>
       normalizeID(i.IDEvento) === normalizeID(idEventoActivo) &&
-      gruposEnPista.includes(normalizeGrupo(i.IDGrupo))
+      gruposParaMostrar.includes(normalizeGrupo(i.IDGrupo))
     )
     .map(p => {
       const rNom = razas.find(r => String(r.IDRaza) === String(p.IDRaza))?.NombreRaza || p.IDRaza;
@@ -1543,6 +1618,52 @@ async function renderJuzgamiento(pistaNro) {
       };
     });
 
+  // 3.1. LISTA DE RAZAS DISPONIBLES PARA EL GRUPO FILTRADO
+  // La botonera de razas aparece solo cuando se selecciona un grupo puntual.
+  let razasDisponiblesFiltro = [];
+
+  if (grupoFiltroActivo !== "TODOS") {
+    const mapRazasFiltro = new Map();
+
+    perrosEnriched.forEach(p => {
+      if (!mapRazasFiltro.has(String(p.IDRaza))) {
+        mapRazasFiltro.set(String(p.IDRaza), {
+          id: String(p.IDRaza),
+          nombre: p.razaNombre || String(p.IDRaza)
+        });
+      }
+    });
+
+    razasDisponiblesFiltro = Array.from(mapRazasFiltro.values())
+      .sort((a, b) => String(a.nombre).localeCompare(String(b.nombre)));
+  }
+
+  if (!window._filtroRazaJuzgamiento) {
+    window._filtroRazaJuzgamiento = "TODAS";
+  }
+
+  const contextoFiltroRaza = `${contextoFiltro}_${grupoFiltroActivo}`;
+
+  if (window._filtroRazaContexto !== contextoFiltroRaza) {
+    window._filtroRazaContexto = contextoFiltroRaza;
+    window._filtroRazaJuzgamiento = "TODAS";
+  }
+
+  const razaFiltroActivo = window._filtroRazaJuzgamiento || "TODAS";
+
+  if (
+    razaFiltroActivo !== "TODAS" &&
+    !razasDisponiblesFiltro.some(r => String(r.id) === String(razaFiltroActivo))
+  ) {
+    window._filtroRazaJuzgamiento = "TODAS";
+  }
+
+  const razaFiltroFinal = window._filtroRazaJuzgamiento || "TODAS";
+
+  if (grupoFiltroActivo !== "TODOS" && razaFiltroFinal !== "TODAS") {
+    perrosEnriched = perrosEnriched.filter(p => String(p.IDRaza) === String(razaFiltroFinal));
+  }
+
   perrosEnriched.sort((a, b) =>
     (a.IDGrupo || "").localeCompare(b.IDGrupo || "") ||
     (a.razaNombre || "").localeCompare(b.razaNombre || "") ||
@@ -1551,6 +1672,53 @@ async function renderJuzgamiento(pistaNro) {
   );
 
   let html = `<div class="live-summary"><strong>${juezNombre}</strong> | Grupos: ${gruposEnPista.join(", ")}</div>`;
+
+  // 4. BOTONERA DE FILTRO VISUAL INTERNO DE GRUPOS
+  html += `
+    <div class="rowline" style="margin: 8px 0 8px 0; padding: 8px; background:#fffdf9; border:1px solid rgba(184,115,51,.25); border-radius:10px;">
+      <span class="rowlabel">Filtrar grupo:</span>
+      <div class="rowbuttons rowbuttons-wrap">
+        <button type="button"
+                class="btn-xs titulo-btn ${grupoFiltroActivo === "TODOS" ? "active multi" : ""}"
+                onclick="window._filtroGrupoRaza='TODOS'; window._filtroRazaJuzgamiento='TODAS'; renderJuzgamiento('${pistaSafe}')">
+          TODOS
+        </button>
+
+        ${gruposEnPista.map(g => `
+          <button type="button"
+                  class="btn-xs titulo-btn ${grupoFiltroActivo === g ? "active multi" : ""}"
+                  onclick="window._filtroGrupoRaza='${g}'; window._filtroRazaJuzgamiento='TODAS'; renderJuzgamiento('${pistaSafe}')">
+            ${g}
+          </button>
+        `).join("")}
+      </div>
+    </div>
+  `;
+
+  // 4.1. BOTONERA DE FILTRO VISUAL INTERNO DE RAZAS
+  // Solo aparece si elegiste un grupo concreto.
+  if (grupoFiltroActivo !== "TODOS") {
+    html += `
+      <div class="rowline" style="margin: 0 0 14px 0; padding: 8px; background:#fffdf9; border:1px solid rgba(184,115,51,.18); border-radius:10px;">
+        <span class="rowlabel">Filtrar raza:</span>
+        <div class="rowbuttons rowbuttons-wrap">
+          <button type="button"
+                  class="btn-xs titulo-btn ${razaFiltroFinal === "TODAS" ? "active multi" : ""}"
+                  onclick="window._filtroRazaJuzgamiento='TODAS'; renderJuzgamiento('${pistaSafe}')">
+            TODAS
+          </button>
+
+          ${razasDisponiblesFiltro.map(rz => `
+            <button type="button"
+                    class="btn-xs titulo-btn ${String(razaFiltroFinal) === String(rz.id) ? "active multi" : ""}"
+                    onclick="window._filtroRazaJuzgamiento='${String(rz.id).replace(/'/g, "\\'")}'; renderJuzgamiento('${pistaSafe}')">
+              ${rz.nombre}
+            </button>
+          `).join("")}
+        </div>
+      </div>
+    `;
+  }
 
   if (esLimitada) {
     html += `
@@ -1587,6 +1755,8 @@ async function renderJuzgamiento(pistaNro) {
 
     const isAus = isTruthy(r?.Ausente);
     const tGanados = (r?.Titulo_Ganado || "").split(",").map(x => x.trim()).filter(Boolean);
+    const rolesFinalRaza = splitMulti(r?.RolesFinalRaza);
+    const finalesGrupo = splitMulti(r?.FinalGrupoCategorias);
     const esCachorro = ["C00", "C01"].includes(p.IDCategoria);
     const califBtns = esCachorro ? ["MP", "P"] : ["Exc", "MB", "B", "D"];
 
@@ -1636,22 +1806,99 @@ async function renderJuzgamiento(pistaNro) {
             <span class="rowlabel">Título:</span>
             <div class="rowbuttons rowbuttons-wrap">
               ${titulosPosibles.map(t => {
-      const nom = (t.NombreTitulo || "").trim();
-      const isSelected = tGanados.includes(nom);
-      return `
+                const nom = (t.NombreTitulo || "").trim();
+                const isSelected = tGanados.includes(nom);
+                return `
                   <button type="button"
                           class="btn-xs titulo-btn ${isSelected ? 'active multi' : ''}"
                           ${isAus ? 'disabled' : ''}
                           onclick="window.guardarResultado(event, '${p.IDInscripcion}','${juezId}','${idEventoActivo}','${nom.replace(/'/g, "\\'")}','Titulo_Ganado', true)">
                     ${nom}
                   </button>`;
-    }).join("")}
+              }).join("")}
             </div>
           </div>
         ` : ""}
+
+        <div class="rowline">
+          <span class="rowlabel">Finales de Raza:</span>
+
+          <div style="display:flex; flex-direction:column; gap:5px; width:100%;">
+            <div style="display:flex; flex-wrap:wrap; align-items:center; gap:5px;">
+              <span style="min-width:75px; font-size:11px; font-weight:800; color:#8a4b1c;">Cachorros:</span>
+              ${["MEJOR_CACHORRO_RAZA", "SEXO_OPUESTO_CACHORRO"].map(rol => `
+                <button type="button"
+                        class="btn-xs titulo-btn ${rolesFinalRaza.includes(rol) ? 'active multi' : ''}"
+                        ${isAus ? 'disabled' : ''}
+                        onclick="window.guardarResultado(event, '${p.IDInscripcion}','${juezId}','${idEventoActivo}','${rol}','RolesFinalRaza', true)">
+                  ${rol}
+                </button>
+              `).join("")}
+            </div>
+
+            <div style="display:flex; flex-wrap:wrap; align-items:center; gap:5px;">
+              <span style="min-width:75px; font-size:11px; font-weight:800; color:#8a4b1c;">Jóvenes:</span>
+              ${["MEJOR_JOVEN_MACHO", "MEJOR_JOVEN_HEMBRA", "MEJOR_JOVEN_RAZA", "SEXO_OPUESTO_JOVEN"].map(rol => `
+                <button type="button"
+                        class="btn-xs titulo-btn ${rolesFinalRaza.includes(rol) ? 'active multi' : ''}"
+                        ${isAus ? 'disabled' : ''}
+                        onclick="window.guardarResultado(event, '${p.IDInscripcion}','${juezId}','${idEventoActivo}','${rol}','RolesFinalRaza', true)">
+                  ${rol}
+                </button>
+              `).join("")}
+            </div>
+
+            <div style="display:flex; flex-wrap:wrap; align-items:center; gap:5px;">
+              <span style="min-width:75px; font-size:11px; font-weight:800; color:#8a4b1c;">Adultos:</span>
+              ${["MEJOR_MACHO", "MEJOR_HEMBRA", "MEJOR_DE_RAZA", "SEXO_OPUESTO_RAZA"].map(rol => `
+                <button type="button"
+                        class="btn-xs titulo-btn ${rolesFinalRaza.includes(rol) ? 'active multi' : ''}"
+                        ${isAus ? 'disabled' : ''}
+                        onclick="window.guardarResultado(event, '${p.IDInscripcion}','${juezId}','${idEventoActivo}','${rol}','RolesFinalRaza', true)">
+                  ${rol}
+                </button>
+              `).join("")}
+            </div>
+
+            <div style="display:flex; flex-wrap:wrap; align-items:center; gap:5px;">
+              <span style="min-width:75px; font-size:11px; font-weight:800; color:#8a4b1c;">Veteranos:</span>
+              ${["MEJOR_VETERANO_RAZA", "SEXO_OPUESTO_VETERANO"].map(rol => `
+                <button type="button"
+                        class="btn-xs titulo-btn ${rolesFinalRaza.includes(rol) ? 'active multi' : ''}"
+                        ${isAus ? 'disabled' : ''}
+                        onclick="window.guardarResultado(event, '${p.IDInscripcion}','${juezId}','${idEventoActivo}','${rol}','RolesFinalRaza', true)">
+                  ${rol}
+                </button>
+              `).join("")}
+            </div>
+          </div>
+        </div>
+
+        <div class="rowline">
+          <span class="rowlabel">Pasa a Final de Grupo como:</span>
+          <div class="rowbuttons rowbuttons-wrap">
+            ${FINAL_GRUPO_CATEGORIAS.map(sc => `
+              <button type="button"
+                      class="btn-xs titulo-btn ${finalesGrupo.includes(sc) ? 'active multi' : ''}"
+                      ${isAus ? 'disabled' : ''}
+                      onclick="window.guardarResultado(event, '${p.IDInscripcion}','${juezId}','${idEventoActivo}','${sc}','FinalGrupoCategorias', true)">
+                ${sc}
+              </button>
+            `).join("")}
+          </div>
+        </div>
       </div>
     `;
   });
+
+  if (perrosEnriched.length === 0) {
+    html += `
+      <div class="wait-box">
+        <p class="wait-title">No hay perros para el filtro seleccionado.</p>
+        <p class="wait-text">Seleccioná otro grupo, otra raza o tocá TODOS / TODAS.</p>
+      </div>
+    `;
+  }
 
   $("panelJuzgamiento").innerHTML = html;
 }
@@ -1770,37 +2017,24 @@ function renderJuzgamientoGrupos() {
   let hayPerros = false;
 
   config.superCats.forEach(scName => {
-    const idsCatIncluidas = MAPA_SUPER_CATS[scName] || [];
-
-    const candidatos = insc.filter(p => {
-      if (p.IDEvento && normalizeID(p.IDEvento) !== nE) return false;
-
-      const gPerro = normalizeGrupo(p.IDGrupo);
-      const grupoEnSeleccion = config.groupIds.includes(gPerro);
-      const grupoPermitido = esLimitada ? gruposHabilitados.includes(gPerro) : true;
-
-      return grupoEnSeleccion && grupoPermitido && idsCatIncluidas.includes(p.IDCategoria);
-    });
-
-    const ganadores = candidatos.filter(p => {
-      if (!nE || !nJ) return false;
-
-      const rRaza = resR.find(rr =>
-        normalizeID(rr.IDInscripcion) === normalizeID(p.IDInscripcion) &&
+    const ganadores = resR
+      .filter(rr =>
         normalizeID(rr.IDEvento) === nE &&
         normalizeID(rr.IDJuez) === nJ &&
-        String(rr.Puesto) === "1" &&
-        !isTruthy(rr.Ausente)
-      );
-
-      if (!rRaza) return false;
-
-      if (esLimitada) {
-        return true;
-      }
-
-      return ["exc", "mp"].includes(normalizeID(rRaza.Calificacion));
-    });
+        !isTruthy(rr.Ausente) &&
+        multiHas(rr.FinalGrupoCategorias, scName)
+      )
+      .map(rr => insc.find(p =>
+        normalizeID(p.IDInscripcion) === normalizeID(rr.IDInscripcion) &&
+        (!p.IDEvento || normalizeID(p.IDEvento) === nE)
+      ))
+      .filter(Boolean)
+      .filter(p => {
+        const gPerro = normalizeGrupo(p.IDGrupo);
+        const grupoEnSeleccion = config.groupIds.includes(gPerro);
+        const grupoPermitido = esLimitada ? gruposHabilitados.includes(gPerro) : true;
+        return grupoEnSeleccion && grupoPermitido;
+      });
 
     ganadores.sort((a, b) => normalizeGrupo(a.IDGrupo).localeCompare(normalizeGrupo(b.IDGrupo)));
 
@@ -1822,7 +2056,8 @@ function renderJuzgamientoGrupos() {
         const r = resG.find(rg =>
           normalizeID(rg.IDInscripcion) === normalizeID(p.IDInscripcion) &&
           normalizeID(rg.IDEvento) === nE &&
-          normalizeID(rg.IDJuez) === nJ
+          normalizeID(rg.IDJuez) === nJ &&
+          String(rg.FinalGrupoCategoria || "").trim() === String(scName)
         );
 
         const isAus = isTruthy(r?.Ausente);
@@ -1838,7 +2073,7 @@ function renderJuzgamientoGrupos() {
               <div class="grupo-aus-zone">
                 <button type="button"
                         class="btn-xs btn-aus-grupo ${isAus ? 'active' : ''}"
-                        onclick="window.guardarResultadoGrupo(event, '${p.IDInscripcion}', 'AUS')">
+                        onclick="window.guardarResultadoGrupo(event, '${p.IDInscripcion}', 'AUS', '${scName}')">
                   AUS
                 </button>
               </div>
@@ -1847,7 +2082,7 @@ function renderJuzgamientoGrupos() {
                 ${["1", "2", "3", "4", "5", "6", "7"].map(pst => `
                   <button class="btn-xs ${String(r?.PuestoGrupo) === pst ? 'active' : ''}"
                           ${isAus ? 'disabled' : ''}
-                          onclick="window.guardarResultadoGrupo(event, '${p.IDInscripcion}', '${pst}')">
+                          onclick="window.guardarResultadoGrupo(event, '${p.IDInscripcion}', '${pst}', '${scName}')">
                     ${pst}°
                   </button>
                 `).join("")}
@@ -1864,10 +2099,10 @@ function renderJuzgamientoGrupos() {
         <span class="wait-ico">⚠️</span>
         <p class="wait-title">Esperando ganadores de raza...</p>
         <p class="wait-text">
-          Los perros aparecerán aquí automáticamente cuando tengan 1° Puesto en raza.
+          Los perros aparecerán aquí cuando se marque "Pasa a Final de Grupo como" en raza.
           <br><br>
           <strong class="danger-strong">
-            En jueces GENERALES también se exige Exc o MP. En jueces LIMITADA alcanza con 1° Puesto y no estar AUSENTE.
+            La selección es manual y puede incluir más de una final para el mismo perro.
           </strong>
         </p>
         <button class="btn-solid" onclick="window.syncAll().then(() => window.renderJuzgamientoGrupos())">
@@ -2429,8 +2664,8 @@ async function eliminarInscripcion() {
 window.guardarResultado = async (e, idP, idJ, idE, val, campo, esMulti = false) => {
   // 1. Captura inmediata del evento para que no se pierda
   if (e) {
-    if (typeof e.preventDefault === 'function') e.preventDefault();
-    if (typeof e.stopPropagation === 'function') e.stopPropagation();
+    if (typeof e.preventDefault === "function") e.preventDefault();
+    if (typeof e.stopPropagation === "function") e.stopPropagation();
   }
 
   if (!idE || idE === "undefined") return;
@@ -2439,13 +2674,17 @@ window.guardarResultado = async (e, idP, idJ, idE, val, campo, esMulti = false) 
   const btn = e?.currentTarget || e?.target?.closest?.(".btn-xs");
   if (!btn) return;
 
-  // 3. Bloqueo de seguridad: Evita doble clic accidental mientras se procesa
+  // 3. Bloqueo de seguridad: evita doble clic accidental mientras se procesa
   if (btn.disabled) return;
   btn.disabled = true;
-  setTimeout(() => { if (btn) btn.disabled = false; }, 300);
+  setTimeout(() => {
+    if (btn) btn.disabled = false;
+  }, 300);
 
   let res = CACHE.get("Resultados_Razas") || [];
-  const nP = normalizeID(idP), nJ = normalizeID(idJ), nE = normalizeID(idE);
+  const nP = normalizeID(idP);
+  const nJ = normalizeID(idJ);
+  const nE = normalizeID(idE);
 
   // CONTROL JUEZ LIMITADA: no puede guardar títulos
   const jueces = CACHE.get("Jueces") || [];
@@ -2458,7 +2697,10 @@ window.guardarResultado = async (e, idP, idJ, idE, val, campo, esMulti = false) 
   }
 
   // VALIDACIÓN DE UNICIDAD PARA PUESTOS (1° al 7°)
-  if (!esMulti && campo === "Puesto" && ["1", "2", "3", "4", "5", "6", "7"].includes(String(val))) {
+  // Regla corregida:
+  // mismo evento + mismo juez + mismo puesto + misma raza + misma categoría + mismo sexo.
+  // Esto permite 1° macho y 1° hembra en la misma raza/categoría.
+  if (false && !esMulti && campo === "Puesto" && ["1", "2", "3", "4", "5", "6", "7"].includes(String(val))) {
     const insc = CACHE.get("Catalogo_Perros_Inscriptos") || [];
     const perroActual = insc.find(i => normalizeID(i.IDInscripcion) === nP);
 
@@ -2470,19 +2712,33 @@ window.guardarResultado = async (e, idP, idJ, idE, val, campo, esMulti = false) 
         normalizeID(r.IDInscripcion) !== nP &&
         (() => {
           const otro = insc.find(i => normalizeID(i.IDInscripcion) === normalizeID(r.IDInscripcion));
-          return otro && otro.IDRaza === perroActual.IDRaza && otro.IDCategoria === perroActual.IDCategoria;
+          return (
+            otro &&
+            String(otro.IDRaza) === String(perroActual.IDRaza) &&
+            String(otro.IDCategoria) === String(perroActual.IDCategoria) &&
+            String(otro.IDSexo) === String(perroActual.IDSexo)
+          );
         })()
       );
 
       if (conflicto) {
         const otroPerro = insc.find(i => normalizeID(i.IDInscripcion) === normalizeID(conflicto.IDInscripcion));
-        alert(`¡ACCIÓN DENEGADA!\n\nYa existe un ${val}° Puesto asignado al perro #${otroPerro?.NumeroCatalogo || '??'} en esta misma Raza y Categoría.\n\nDebe desmarcar el ganador anterior antes de asignar uno nuevo.`);
+        alert(
+          `¡ACCIÓN DENEGADA!\n\n` +
+          `Ya existe un ${val}° Puesto asignado al perro #${otroPerro?.NumeroCatalogo || "??"} ` +
+          `en esta misma Raza, Categoría y Sexo.\n\n` +
+          `Debe desmarcar el ganador anterior antes de asignar uno nuevo.`
+        );
         return;
       }
     }
   }
 
-  let rec = res.find(x => normalizeID(x.IDInscripcion) === nP && normalizeID(x.IDJuez) === nJ && normalizeID(x.IDEvento) === nE);
+  let rec = res.find(x =>
+    normalizeID(x.IDInscripcion) === nP &&
+    normalizeID(x.IDJuez) === nJ &&
+    normalizeID(x.IDEvento) === nE
+  );
 
   if (!rec) {
     rec = {
@@ -2493,12 +2749,20 @@ window.guardarResultado = async (e, idP, idJ, idE, val, campo, esMulti = false) 
       Calificacion: "",
       Puesto: "",
       Titulo_Ganado: "",
-      Ausente: false
+      Ausente: false,
+      TipoCompetencia: esLimitada ? "LIMITADA" : "GENERAL",
+      RolesFinalRaza: "",
+      FinalGrupoCategorias: ""
     };
     res.push(rec);
   }
 
-  // --- REFORMA AUSENTE (BLOQUE CORREGIDO) ---
+  // Asegurar TipoCompetencia también en registros viejos
+  if (!rec.TipoCompetencia) {
+    rec.TipoCompetencia = esLimitada ? "LIMITADA" : "GENERAL";
+  }
+
+  // --- AUSENTE ---
   if (campo === "Ausente") {
     const markingAusente = isTruthy(val);
     rec.Ausente = markingAusente;
@@ -2508,18 +2772,26 @@ window.guardarResultado = async (e, idP, idJ, idE, val, campo, esMulti = false) 
       rec.Puesto = "";
       rec.Calificacion = "";
       rec.Titulo_Ganado = "";
+      rec.RolesFinalRaza = "";
+      rec.FinalGrupoCategorias = "";
     }
 
-    // Re-render siempre (tanto al marcar como al desmarcar)
+    // Re-render siempre, tanto al marcar como al desmarcar
     setTimeout(() => {
-      const curPista = Array.from(document.querySelectorAll("#selectorPistaTrabajo .btn-opt.active")).map(b => b.dataset.value)[0];
+      const curPista = Array.from(document.querySelectorAll("#selectorPistaTrabajo .btn-opt.active"))
+        .map(b => b.dataset.value)[0];
+
       if (curPista) renderJuzgamiento(curPista);
     }, 100);
 
   } else {
-    // Carga normal de resultados (solo si no es campo Ausente)
+    // Carga normal de resultados
     if (esMulti) {
-      let tArr = (rec[campo] || "").split(", ").map(s => s.trim()).filter(Boolean);
+      let tArr = (rec[campo] || "")
+        .split(", ")
+        .map(s => s.trim())
+        .filter(Boolean);
+
       if (tArr.includes(val)) {
         tArr = tArr.filter(x => x !== val);
         btn.classList.remove("active", "multi");
@@ -2527,33 +2799,44 @@ window.guardarResultado = async (e, idP, idJ, idE, val, campo, esMulti = false) 
         tArr.push(val);
         btn.classList.add("active", "multi");
       }
+
       rec[campo] = tArr.join(", ");
     } else {
       const parent = btn.parentElement;
       if (parent) {
         parent.querySelectorAll(".btn-xs").forEach(b => b.classList.remove("active"));
       }
+
       btn.classList.add("active");
       rec[campo] = val;
 
       const card = btn.closest(".dog-card-compact");
       if (card && campo === "Puesto") {
-        card.style.borderLeftColor = (val === "1") ? "#27ae60" : "#bdc3c7";
+        card.style.borderLeftColor = val === "1" ? "#27ae60" : "#bdc3c7";
       }
     }
   }
 
   CACHE.set("Resultados_Razas", res);
-  if (window._pistaGrupoActiva) renderJuzgamientoGrupos();
 
-  const timerKey = `raza_${nP}_${nE}`;
-  if (pendingTimers.has(timerKey)) clearTimeout(pendingTimers.get(timerKey));
+  if (window._pistaGrupoActiva) {
+    renderJuzgamientoGrupos();
+  }
+
+  const timerKey = `raza_${nP}_${nE}_${nJ}`;
+  if (pendingTimers.has(timerKey)) {
+    clearTimeout(pendingTimers.get(timerKey));
+  }
 
   pendingTimers.set(timerKey, setTimeout(async () => {
     setStatus("Sincronizando...");
+
     const isTemp = String(rec.IDResultado).startsWith("TEMP_");
     const payload = { ...rec };
-    if (isTemp) delete payload.IDResultado;
+
+    if (isTemp) {
+      delete payload.IDResultado;
+    }
 
     try {
       const servidor = await api("POST", {}, {
@@ -2567,6 +2850,7 @@ window.guardarResultado = async (e, idP, idJ, idE, val, campo, esMulti = false) 
         rec.IDResultado = servidor.id;
         CACHE.set("Resultados_Razas", res);
       }
+
       setStatus("Guardado OK.");
     } catch (e) {
       setStatus("Error al guardar: " + e.message, true);
@@ -2583,7 +2867,7 @@ window.guardarResultado = async (e, idP, idJ, idE, val, campo, esMulti = false) 
 
 
 
-window.guardarResultadoGrupo = async (e, inscId, puesto) => {
+window.guardarResultadoGrupo = async (e, inscId, puesto, finalGrupoCategoria) => {
   // =====================================================================================
   // 0) CONFIG + BOTÓN (ESTABILIDAD TOTAL DEL CLICK)
   // =====================================================================================
@@ -2594,34 +2878,44 @@ window.guardarResultadoGrupo = async (e, inscId, puesto) => {
 
   if (btn.disabled) return;
   btn.disabled = true;
-  setTimeout(() => { if (btn) btn.disabled = false; }, 250);
+  setTimeout(() => {
+    if (btn) btn.disabled = false;
+  }, 250);
 
   // =====================================================================================
   // 1) DATA BASE (CACHE)
   // =====================================================================================
   let resG = CACHE.get("Resultados_Grupos") || [];
   const insc = CACHE.get("Catalogo_Perros_Inscriptos") || [];
+  const jueces = CACHE.get("Jueces") || [];
 
   const nI = normalizeID(inscId);
   const nE = normalizeID(config.eventId);
   const nJ = normalizeID(config.judgeId);
+  const fgc = String(finalGrupoCategoria || "").trim();
+
+  if (!fgc) return;
 
   const perroActual = insc.find(i => normalizeID(i.IDInscripcion) === nI);
   if (!perroActual) return;
+
+  const juezGrupoActual = jueces.find(j => normalizeID(j.IDJuez) === nJ);
+  const esGrupoLimitada = String(juezGrupoActual?.TipoJuez || "GENERAL").toUpperCase() === "LIMITADA";
 
   const grupoActual = String(perroActual.IDGrupo || "");
   const catActual = String(perroActual.IDCategoria || "");
 
   // =====================================================================================
-  // 2) REGISTRO POR JUEZ (CLAVE REAL)
-  //    Antes: (IDInscripcion + IDEvento)
-  //    Ahora: (IDInscripcion + IDEvento + IDJuez)
+  // 2) REGISTRO POR FINAL DE GRUPO (CLAVE REAL)
+  //    IDInscripcion + IDEvento + IDJuez + FinalGrupoCategoria
   // =====================================================================================
   let rec = resG.find(r =>
     normalizeID(r.IDInscripcion) === nI &&
     normalizeID(r.IDEvento) === nE &&
-    normalizeID(r.IDJuez) === nJ
+    normalizeID(r.IDJuez) === nJ &&
+    String(r.FinalGrupoCategoria || "").trim() === fgc
   );
+
   const isNew = !rec;
 
   if (isNew) {
@@ -2632,13 +2926,18 @@ window.guardarResultadoGrupo = async (e, inscId, puesto) => {
       IDJuez: config.judgeId,
       IDGrupo: grupoActual,
       IDCategoria: catActual,
-      PuestoGrupo: ""
+      PuestoGrupo: "",
+      Ausente: false,
+      TipoCompetencia: esGrupoLimitada ? "LIMITADA" : "GENERAL",
+      FinalGrupoCategoria: fgc
     };
     resG.push(rec);
   } else {
     if (!rec.IDGrupo) rec.IDGrupo = grupoActual;
     if (!rec.IDCategoria) rec.IDCategoria = catActual;
-    if (!rec.IDJuez) rec.IDJuez = config.judgeId; // por si quedó data vieja
+    if (!rec.IDJuez) rec.IDJuez = config.judgeId;
+    if (!rec.FinalGrupoCategoria) rec.FinalGrupoCategoria = fgc;
+    if (!rec.TipoCompetencia) rec.TipoCompetencia = esGrupoLimitada ? "LIMITADA" : "GENERAL";
   }
 
   // =====================================================================================
@@ -2667,15 +2966,17 @@ window.guardarResultadoGrupo = async (e, inscId, puesto) => {
       table: "Resultados_Grupos",
       payload,
       id: isTempAus ? null : rec.IDResultadoGrupo
-    }).then(servidor => {
-      if (isTempAus && servidor && servidor.id) {
-        rec.IDResultadoGrupo = servidor.id;
-        CACHE.set("Resultados_Grupos", resG);
-      }
-      setStatus("Grupo sincronizado.");
-    }).catch(e2 => {
-      setStatus("Error al guardar grupo: " + e2.message, true);
-    });
+    })
+      .then(servidor => {
+        if (isTempAus && servidor && servidor.id) {
+          rec.IDResultadoGrupo = servidor.id;
+          CACHE.set("Resultados_Grupos", resG);
+        }
+        setStatus("Grupo sincronizado.");
+      })
+      .catch(e2 => {
+        setStatus("Error al guardar grupo: " + e2.message, true);
+      });
 
     return;
   }
@@ -2685,30 +2986,31 @@ window.guardarResultadoGrupo = async (e, inscId, puesto) => {
   // =====================================================================================
   // 3) TOGGLE COHERENTE DEL PUESTO
   // =====================================================================================
-  const nuevoPuesto = (String(rec.PuestoGrupo || "") === String(puesto)) ? "" : String(puesto);
+  const nuevoPuesto = String(rec.PuestoGrupo || "") === String(puesto) ? "" : String(puesto);
 
   // =====================================================================================
-  // 4) UNICIDAD (MISMO EVENTO + MISMO JUEZ + MISMO GRUPO + MISMA CATEGORÍA)
+  // 4) UNICIDAD (MISMO EVENTO + MISMO JUEZ + MISMO GRUPO + MISMA FINAL DE GRUPO)
   // =====================================================================================
   if (nuevoPuesto !== "") {
-
     const conflicto = resG.find(r =>
       normalizeID(r.IDEvento) === nE &&
-      normalizeID(r.IDJuez) === nJ &&                 // <<< CLAVE: juez
-      String(r.IDGrupo || "") === grupoActual &&
-      String(r.IDCategoria || "") === catActual &&
+      normalizeID(r.IDJuez) === nJ &&
+      normalizeGrupo(r.IDGrupo) === normalizeGrupo(grupoActual) &&
+      String(r.FinalGrupoCategoria || "").trim() === fgc &&
       String(r.PuestoGrupo || "") === String(nuevoPuesto) &&
       normalizeID(r.IDInscripcion) !== nI
     );
 
     if (conflicto) {
       const otroPerro = insc.find(i => normalizeID(i.IDInscripcion) === normalizeID(conflicto.IDInscripcion));
+
       alert(
         `¡ACCIÓN DENEGADA!\n\n` +
-        `Ya existe un ${nuevoPuesto}° Puesto asignado al perro #${otroPerro?.NumeroCatalogo || '??'}\n` +
-        `en este MISMO Grupo y Categoría.\n\n` +
+        `Ya existe un ${nuevoPuesto}° Puesto asignado al perro #${otroPerro?.NumeroCatalogo || "??"}\n` +
+        `en este MISMO Grupo y Final de Grupo (${fgc}).\n\n` +
         `Debe desmarcarlo antes de elegir un nuevo ${nuevoPuesto}°.`
       );
+
       return;
     }
 
@@ -2716,9 +3018,9 @@ window.guardarResultadoGrupo = async (e, inscId, puesto) => {
     resG.forEach(r => {
       if (
         normalizeID(r.IDEvento) === nE &&
-        normalizeID(r.IDJuez) === nJ &&             // <<< CLAVE: juez
-        String(r.IDGrupo || "") === grupoActual &&
-        String(r.IDCategoria || "") === catActual &&
+        normalizeID(r.IDJuez) === nJ &&
+        normalizeGrupo(r.IDGrupo) === normalizeGrupo(grupoActual) &&
+        String(r.FinalGrupoCategoria || "").trim() === fgc &&
         String(r.PuestoGrupo || "") === String(nuevoPuesto) &&
         normalizeID(r.IDInscripcion) !== nI
       ) {
@@ -2739,7 +3041,10 @@ window.guardarResultadoGrupo = async (e, inscId, puesto) => {
   if (parent) {
     parent.querySelectorAll(".btn-xs").forEach(b => b.classList.remove("active"));
   }
-  if (rec.PuestoGrupo !== "") btn.classList.add("active");
+
+  if (rec.PuestoGrupo !== "") {
+    btn.classList.add("active");
+  }
 
   // =====================================================================================
   // 7) CACHE + RENDER
@@ -2753,7 +3058,8 @@ window.guardarResultadoGrupo = async (e, inscId, puesto) => {
   // 8) GUARDADO EN SEGUNDO PLANO
   // =====================================================================================
   const payload = { ...rec };
-  const isTemp = String(payload.IDResultadoGrupo).startsWith("TEMP_");
+  const isTemp = String(payload.IDResultadoGrupo || "").startsWith("TEMP_");
+
   if (isTemp) delete payload.IDResultadoGrupo;
 
   api("POST", {}, {
@@ -2761,12 +3067,17 @@ window.guardarResultadoGrupo = async (e, inscId, puesto) => {
     table: "Resultados_Grupos",
     payload,
     id: isTemp ? null : rec.IDResultadoGrupo
-  }).then(servidor => {
-    if (isTemp && servidor && servidor.id) rec.IDResultadoGrupo = servidor.id;
-    setStatus("Grupo sincronizado.");
-  }).catch(e2 => {
-    setStatus("Error al guardar grupo: " + e2.message, true);
-  });
+  })
+    .then(servidor => {
+      if (isTemp && servidor && servidor.id) {
+        rec.IDResultadoGrupo = servidor.id;
+        CACHE.set("Resultados_Grupos", resG);
+      }
+      setStatus("Grupo sincronizado.");
+    })
+    .catch(e2 => {
+      setStatus("Error al guardar grupo: " + e2.message, true);
+    });
 };
 
 
@@ -3100,10 +3411,19 @@ window._pistaBisActiva = null;
 
 // Mapeo de qué categorías entran en cada Gran Final de BIS
 const MAPA_BIS_FINALES = {
+  "BIS CACHORROS ESPECIALES": ["C00"],
   "BIS CACHORROS": ["C00", "C01"],
   "BIS JOVENES": ["C02", "C03"],
   "BIS ADULTOS": ["C04", "C05", "C06", "C07"],
   "BIS VETERANOS": ["C08"]
+};
+
+const MAPA_BIS_FINAL_GRUPO = {
+  "BIS CACHORROS ESPECIALES": ["CACHORROS ESPECIALES"],
+  "BIS CACHORROS": ["CACHORROS"],
+  "BIS JOVENES": ["JOVENES"],
+  "BIS ADULTOS": ["ADULTOS"],
+  "BIS VETERANOS": ["VETERANOS"]
 };
 
 // --- BIS: FORMULARIO (Evento + Botonera Jueces con Pista) ---
@@ -3255,19 +3575,20 @@ function renderJuzgamientoBis() {
 
   let html = "";
 
-  Object.entries(MAPA_BIS_FINALES).forEach(([nombreBis, categoriasIncluidas]) => {
+  Object.entries(MAPA_BIS_FINALES).forEach(([nombreBis]) => {
+    const finalesGrupoIncluidas = MAPA_BIS_FINAL_GRUPO[nombreBis] || [];
 
     const ganadoresGrupo = resGrupos.filter(rg =>
       evOf(rg) === nE &&
       juezOf(rg) === nJ &&
       String(rg.PuestoGrupo || "") === "1" &&
-      !isTruthy(rg.Ausente)
+      !isTruthy(rg.Ausente) &&
+      finalesGrupoIncluidas.includes(String(rg.FinalGrupoCategoria || "").trim())
     );
 
     const candidatos = ganadoresGrupo
       .map(rg => insc.find(p => normalizeID(p.IDInscripcion) === normalizeID(rg.IDInscripcion)))
-      .filter(Boolean)
-      .filter(p => categoriasIncluidas.includes(p.IDCategoria));
+      .filter(Boolean);
 
     const porGrupo = new Map();
     candidatos.forEach(p => {
@@ -3555,6 +3876,7 @@ if (document.readyState === "loading") {
 
 
 window.syncAll = syncAll;
+window.renderJuzgamiento = renderJuzgamiento;
 window.renderJuzgamientoGrupos = renderJuzgamientoGrupos;
 
 document.addEventListener("click", function (e) {
